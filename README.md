@@ -24,6 +24,8 @@ docker run --rm -p 8080:8080 -v ./data:/data ghcr.io/mmsge/cash-money:latest
 
 Hvis pakken i GitHub Container Registry er privat, må du først logge inn med `podman login ghcr.io` eller `docker login ghcr.io`. Offentlige pakker kan hentes uten innlogging.
 
+Det publiserte imaget bygges for `linux/amd64` og `linux/arm64`. Det dekker Linux-servere, Intel/AMD-maskiner, Docker Desktop på Windows og både Intel- og Apple Silicon-Mac. Det er ikke et native Windows-container-image.
+
 ## Kjør lokalt med Docker
 
 ```bash
@@ -63,4 +65,12 @@ For full lokal produksjonsflyt:
 ```bash
 npm run build
 DB_PATH=./data/salary.sqlite STATIC_DIR=./dist python3 -m server.app
+```
+
+## Publiser multi-arkitektur-image manuelt
+
+GitHub Actions publiserer automatisk multi-arkitektur-image ved push til `hovud` eller ved tagger på formatet `v*`. For å bygge og pushe samme type image manuelt fra en maskin med Docker Buildx:
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/mmsge/cash-money:latest --push .
 ```
