@@ -51,6 +51,24 @@ function percent(value) {
   return `${sign}${new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 2 }).format(value)} %`;
 }
 
+function compactKroner(value) {
+  if (value === null || value === undefined) return "første år";
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  const formatted = new Intl.NumberFormat("nb-NO", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(Math.abs(value));
+  return `${sign}${formatted} kr`;
+}
+
+function median(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[middle];
+  return (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
@@ -480,6 +498,7 @@ function FlagMarkers({ flags, xByYear, top, bottom }) {
       const labelY = top + 15 + (index % 3) * 24;
       return (
         <g key={flag.id} className="flag-marker">
+          <title>{`${flag.label} (${flag.salary_year})${flag.note ? `: ${flag.note}` : ""}`}</title>
           <line
             x1={x}
             x2={x}
@@ -498,6 +517,17 @@ function FlagMarkers({ flags, xByYear, top, bottom }) {
         </g>
       );
     });
+}
+
+function flagPositionsBetweenYears(years, xByYear) {
+  const sortedYears = [...new Set(years)].sort((a, b) => a - b);
+  return new Map(
+    sortedYears.flatMap((year, index) => {
+      const nextYear = sortedYears[index + 1];
+      if (!nextYear || !xByYear.has(year) || !xByYear.has(nextYear)) return [];
+      return [[year, (xByYear.get(year) + xByYear.get(nextYear)) / 2]];
+    }),
+  );
 }
 
 function StepChart({ steps, yearly }) {
@@ -520,15 +550,22 @@ function StepChart({ steps, yearly }) {
     const averageX = yearPoints.reduce((sum, point) => sum + point.x, 0) / yearPoints.length;
     xByYear.set(year, averageX);
   }
+  const flagXByYear = flagPositionsBetweenYears(
+    yearly.map((year) => year.salary_year),
+    xByYear,
+  );
 
   return (
     <div className="svg-wrap">
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Lønnstrinn over tid">
         <path className="line-area" d={`${path} L ${points.at(-1).x} ${height - padding} L ${points[0].x} ${height - padding} Z`} />
-        <FlagMarkers flags={chartFlags(yearly)} xByYear={xByYear} top={padding / 2} bottom={height - padding} />
+        <FlagMarkers flags={chartFlags(yearly)} xByYear={flagXByYear} top={padding / 2} bottom={height - padding} />
         <path className="line" d={path} />
         {points.map((point) => (
           <g key={point.id}>
+            <title>{`Lønnsår ${point.salary_year}
+Gyldig fra: ${point.valid_from}
+Årslønn: ${kroner(point.amount_nok)}${point.valid_to ? `\nGyldig til: ${point.valid_to}` : ""}`}</title>
             <circle cx={point.x} cy={point.y} r="6" />
             <text x={point.x} y={point.y - 14} textAnchor="middle">
               {new Intl.NumberFormat("nb-NO", { notation: "compact" }).format(point.amount_nok)}
@@ -544,50 +581,79 @@ function StepChart({ steps, yearly }) {
 }
 
 function PercentTrendChart({ yearly }) {
+  const [mode, setMode] = useState("percent");
   const data = yearly.filter((year) => year.change_percent !== null && year.change_percent !== undefined);
   if (!data.length) return <EmptyChart />;
 
   const width = 900;
   const height = 260;
   const padding = 42;
-  const values = data.map((year) => year.change_percent);
+  const values = data.map((year) => (mode === "percent" ? year.change_percent : year.change_nok));
   const minValue = Math.min(0, ...values);
   const maxValue = Math.max(0, ...values);
   const range = maxValue - minValue || 1;
   const yFor = (value) => height - padding - ((value - minValue) / range) * (height - padding * 2);
   const points = data.map((year, index) => {
     const x = padding + (index / Math.max(data.length - 1, 1)) * (width - padding * 2);
-    return { ...year, x, y: yFor(year.change_percent) };
+    const value = mode === "percent" ? year.change_percent : year.change_nok;
+    return { ...year, value, x, y: yFor(value) };
   });
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
   const xByYear = new Map(points.map((point) => [point.salary_year, point.x]));
+  const flagXByYear = flagPositionsBetweenYears(
+    yearly.map((year) => year.salary_year),
+    xByYear,
+  );
   const zeroY = yFor(0);
   const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const medianValue = median(values);
   const averageY = yFor(average);
+  const medianY = yFor(medianValue);
+  const formatValue = mode === "percent" ? percent : compactKroner;
+  const ariaLabel = mode === "percent" ? "Prosentvis lønnsutvikling per lønnsår" : "Lønnsøkning i kroner per lønnsår";
 
   return (
     <div className="svg-wrap percent-card">
-      <div className="chart-summary">
-        <span>Snitt per lønnsår</span>
-        <strong>{percent(average)}</strong>
+      <div className="chart-toggle" aria-label="Velg visning">
+        <button className={mode === "percent" ? "active" : ""} type="button" onClick={() => setMode("percent")}>
+          Prosent
+        </button>
+        <button className={mode === "money" ? "active" : ""} type="button" onClick={() => setMode("money")}>
+          Kroner
+        </button>
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Prosentvis lønnsutvikling per lønnsår">
+      <div className="chart-summary">
+        <span>Snitt</span>
+        <strong>{formatValue(average)}</strong>
+        <span>Median</span>
+        <strong>{formatValue(medianValue)}</strong>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel}>
         <line className="reference-line" x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} />
         <line className="average-line" x1={padding} x2={width - padding} y1={averageY} y2={averageY} />
+        <line className="median-line" x1={padding} x2={width - padding} y1={medianY} y2={medianY} />
         <path
           className="percent-area"
           d={`${path} L ${points.at(-1).x} ${height - padding} L ${points[0].x} ${height - padding} Z`}
         />
-        <FlagMarkers flags={chartFlags(yearly)} xByYear={xByYear} top={padding / 2} bottom={height - padding} />
+        <FlagMarkers flags={chartFlags(yearly)} xByYear={flagXByYear} top={padding / 2} bottom={height - padding} />
         <text x={width - padding} y={averageY - 8} textAnchor="end" className="reference-label">
-          Snitt {percent(average)}
+          Snitt {formatValue(average)}
+        </text>
+        <text x={width - padding} y={medianY + 18} textAnchor="end" className="reference-label median-label">
+          Median {formatValue(medianValue)}
         </text>
         <path className="percent-line" d={path} />
         {points.map((point) => (
           <g key={point.salary_year}>
+            <title>{`Lønnsår ${point.salary_year}
+Økning: ${compactKroner(point.change_nok)}
+Prosent: ${percent(point.change_percent)}
+Sluttlønn: ${kroner(point.final_amount_nok)}
+Antall lønnstrinn: ${point.steps.length}`}</title>
             <circle className="percent-dot" cx={point.x} cy={point.y} r="6" />
             <text x={point.x} y={point.y - 14} textAnchor="middle">
-              {percent(point.change_percent)}
+              {formatValue(point.value)}
             </text>
             <text x={point.x} y={height - 14} textAnchor="middle" className="axis-label">
               {point.salary_year}
@@ -650,6 +716,10 @@ function ForecastChart({ yearly, predictions }) {
         <path className="forecast-line" d={connectorPath} />
         {positioned.map((point) => (
           <g key={`${point.kind}-${point.salary_year}`}>
+            <title>{`${point.kind === "prediction" ? "Prognose" : "Historikk"} ${point.salary_year}
+Årslønn: ${kroner(point.amount_nok)}${
+              point.kind === "prediction" ? `\nBasert på snittvekst: ${percent(predictions.average_change_percent)}` : ""
+            }`}</title>
             <circle className={point.kind === "prediction" ? "forecast-dot" : ""} cx={point.x} cy={point.y} r="6" />
             <text x={point.x} y={point.y - 14} textAnchor="middle">
               {new Intl.NumberFormat("nb-NO", { notation: "compact" }).format(point.amount_nok)}

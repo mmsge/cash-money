@@ -402,6 +402,32 @@ svg .axis-label {
   text-align: right;
 }
 
+.chart-toggle {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 5px;
+  background: rgba(255, 250, 240, 0.82);
+  box-shadow: 0 14px 34px rgba(50, 42, 25, 0.1);
+}
+
+.chart-toggle button {
+  padding: 0.45rem 0.78rem;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.chart-toggle button.active {
+  color: #fffaf0;
+  background: var(--accent-2);
+}
+
 .chart-summary span {
   color: var(--muted);
   font-size: 0.76rem;
@@ -466,9 +492,20 @@ svg .average-line {
   stroke-width: 3;
 }
 
+svg .median-line {
+  stroke: rgba(180, 83, 9, 0.42);
+  stroke-dasharray: 10 8;
+  stroke-linecap: round;
+  stroke-width: 3;
+}
+
 svg .reference-label {
   fill: var(--accent);
   font-size: 13px;
+}
+
+svg .median-label {
+  fill: var(--accent-2);
 }
 
 svg .flag-marker line {
@@ -594,6 +631,12 @@ th {
     position: static;
     margin-bottom: 12px;
     text-align: left;
+  }
+
+  .chart-toggle {
+    position: static;
+    margin-bottom: 12px;
+    width: max-content;
   }
 
   h1 {
