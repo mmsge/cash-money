@@ -1,0 +1,11 @@
+services:
+  lonnsutvikling:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      DB_PATH: /data/salary.sqlite
+      STATIC_DIR: /app/dist
+      PORT: "8080"
