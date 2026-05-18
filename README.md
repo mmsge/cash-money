@@ -36,6 +36,16 @@ docker compose up --build
 
 SQLite-databasen lagres i `./data/salary.sqlite` via mount til `/data/salary.sqlite` i containeren.
 
+## GitHub Pages-demo
+
+Repoet kan også publisere en statisk GitHub Pages-demo av samme React-app. Denne varianten bruker ikke Python-server eller SQLite. Den lagrer demoendringer i nettleserens `localStorage`, slik at folk kan prøve import, redigering og grafer uten Docker.
+
+Docker/GHCR er fortsatt fullversjonen for varig lokal lagring:
+
+- Standard `npm run build` bygger frontend som Python-serveren serverer fra `dist`.
+- `npm run build:pages` bygger samme UI i statisk demomodus for GitHub Pages.
+- GitHub Pages-workflowen publiserer `dist` fra `npm run build:pages` ved push til `hovud`.
+
 ## Funksjoner
 
 - Manuell registrering av lønnsrader med `Gyldig fra`, valgfri `Gyldig til` og årslønn.
@@ -65,6 +75,13 @@ For full lokal produksjonsflyt:
 ```bash
 npm run build
 DB_PATH=./data/salary.sqlite STATIC_DIR=./dist python3 -m server.app
+```
+
+Statisk Pages-bygg kan testes lokalt med:
+
+```bash
+npm run build:pages
+npm run preview
 ```
 
 ## Publiser multi-arkitektur-image manuelt
