@@ -1,7 +1,6 @@
 import { buildSummary, DEFAULT_SALARY_YEAR_START_MONTH, parseSalaryText, validateSalaryEntry } from "./salaryCore.js";
-import { sampleText } from "./sampleData.js";
 
-const DEMO_STORAGE_KEY = "lonnsutvikling-demo-state-v1";
+const DEMO_STORAGE_KEY = "lonnsutvikling-demo-state-v2";
 export const isDemoMode = import.meta.env?.VITE_DATA_MODE === "local";
 
 async function api(path, options = {}) {
@@ -18,10 +17,10 @@ function nextId(items) {
   return items.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
 }
 
-function seedDemoState() {
+function emptyLocalState() {
   return {
     salary_year_start_month: DEFAULT_SALARY_YEAR_START_MONTH,
-    salary_entries: parseSalaryText(sampleText).map((entry, index) => ({ id: index + 1, ...entry })),
+    salary_entries: [],
     year_flags: [],
   };
 }
@@ -29,9 +28,9 @@ function seedDemoState() {
 function readDemoState() {
   const stored = window.localStorage.getItem(DEMO_STORAGE_KEY);
   if (!stored) {
-    const seeded = seedDemoState();
-    writeDemoState(seeded);
-    return seeded;
+    const empty = emptyLocalState();
+    writeDemoState(empty);
+    return empty;
   }
   try {
     const parsed = JSON.parse(stored);
@@ -41,9 +40,9 @@ function readDemoState() {
       year_flags: parsed.year_flags || [],
     };
   } catch {
-    const seeded = seedDemoState();
-    writeDemoState(seeded);
-    return seeded;
+    const empty = emptyLocalState();
+    writeDemoState(empty);
+    return empty;
   }
 }
 
