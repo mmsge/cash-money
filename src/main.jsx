@@ -346,7 +346,7 @@ function App() {
       </section>
 
       <Panel title="Lønnstrinn" subtitle="Alle registrerte endringer, inkludert økninger inne i samme lønnsår.">
-        <StepChart steps={summary?.steps || []} />
+        <StepChart steps={summary?.steps || []} yearly={summary?.yearly || []} />
       </Panel>
 
       <Panel title="Prosentutvikling" subtitle="Prosentvis økning per lønnsår sammenlignet med forrige lønnsår.">
@@ -459,7 +459,44 @@ function ChangeChart({ yearly }) {
   );
 }
 
-function StepChart({ steps }) {
+function chartFlags(yearly) {
+  return yearly.flatMap((year) =>
+    year.flags.map((flag) => ({
+      ...flag,
+      salary_year: year.salary_year,
+    })),
+  );
+}
+
+function FlagMarkers({ flags, xByYear, top, bottom }) {
+  return flags
+    .filter((flag) => xByYear.has(flag.salary_year))
+    .map((flag, index) => {
+      const x = xByYear.get(flag.salary_year);
+      const labelY = top + 15 + (index % 3) * 24;
+      return (
+        <g key={flag.id} className="flag-marker">
+          <line
+            x1={x}
+            x2={x}
+            y1={top}
+            y2={bottom}
+            style={{ "--flag-color": flag.color }}
+          />
+          <text
+            x={x + 8}
+            y={labelY}
+            className="flag-label"
+            style={{ "--flag-color": flag.color }}
+          >
+            {flag.label}
+          </text>
+        </g>
+      );
+    });
+}
+
+function StepChart({ steps, yearly }) {
   if (!steps.length) return <EmptyChart />;
   const width = 900;
   const height = 260;
@@ -473,11 +510,18 @@ function StepChart({ steps }) {
     return { ...step, x, y };
   });
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const xByYear = new Map();
+  for (const year of new Set(points.map((point) => point.salary_year))) {
+    const yearPoints = points.filter((point) => point.salary_year === year);
+    const averageX = yearPoints.reduce((sum, point) => sum + point.x, 0) / yearPoints.length;
+    xByYear.set(year, averageX);
+  }
 
   return (
     <div className="svg-wrap">
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Lønnstrinn over tid">
         <path className="line-area" d={`${path} L ${points.at(-1).x} ${height - padding} L ${points[0].x} ${height - padding} Z`} />
+        <FlagMarkers flags={chartFlags(yearly)} xByYear={xByYear} top={padding / 2} bottom={height - padding} />
         <path className="line" d={path} />
         {points.map((point) => (
           <g key={point.id}>
@@ -512,6 +556,7 @@ function PercentTrendChart({ yearly }) {
     return { ...year, x, y: yFor(year.change_percent) };
   });
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const xByYear = new Map(points.map((point) => [point.salary_year, point.x]));
   const zeroY = yFor(0);
   const average = values.reduce((sum, value) => sum + value, 0) / values.length;
   const averageY = yFor(average);
@@ -525,13 +570,14 @@ function PercentTrendChart({ yearly }) {
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Prosentvis lønnsutvikling per lønnsår">
         <line className="reference-line" x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} />
         <line className="average-line" x1={padding} x2={width - padding} y1={averageY} y2={averageY} />
-        <text x={width - padding} y={averageY - 8} textAnchor="end" className="reference-label">
-          Snitt {percent(average)}
-        </text>
         <path
           className="percent-area"
           d={`${path} L ${points.at(-1).x} ${height - padding} L ${points[0].x} ${height - padding} Z`}
         />
+        <FlagMarkers flags={chartFlags(yearly)} xByYear={xByYear} top={padding / 2} bottom={height - padding} />
+        <text x={width - padding} y={averageY - 8} textAnchor="end" className="reference-label">
+          Snitt {percent(average)}
+        </text>
         <path className="percent-line" d={path} />
         {points.map((point) => (
           <g key={point.salary_year}>

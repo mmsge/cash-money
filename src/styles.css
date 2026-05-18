@@ -441,6 +441,23 @@ svg .reference-label {
   font-size: 13px;
 }
 
+svg .flag-marker line {
+  stroke: var(--flag-color);
+  stroke-dasharray: 6 8;
+  stroke-linecap: round;
+  stroke-width: 3;
+  opacity: 0.86;
+}
+
+svg .flag-label {
+  fill: var(--flag-color);
+  font-size: 13px;
+  paint-order: stroke;
+  stroke: #fffaf0;
+  stroke-linejoin: round;
+  stroke-width: 5px;
+}
+
 .empty {
   display: grid;
   min-height: 240px;
