@@ -38,7 +38,7 @@ SQLite-databasen lagres i `./data/salary.sqlite` via mount til `/data/salary.sql
 
 ## GitHub Pages-demo
 
-Repoet kan også publisere en statisk GitHub Pages-demo av samme React-app. Denne varianten bruker ikke Python-server eller SQLite. Den lagrer demoendringer i nettleserens `localStorage`, slik at folk kan prøve import, redigering og grafer uten Docker.
+Repoet kan også publisere en statisk GitHub Pages-versjon av samme React-app. Denne varianten bruker ikke Python-server eller SQLite. Den starter uten forhåndsutfylte lønnsdata og lagrer brukerens egne endringer i nettleserens `localStorage`, slik at folk kan prøve import, redigering og grafer uten Docker.
 
 Docker/GHCR er fortsatt fullversjonen for varig lokal lagring:
 

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { dataService, isDemoMode } from "./dataService.js";
-import { sampleText } from "./sampleData.js";
 import "./styles.css";
 
 const MONTHS = [
@@ -73,7 +72,7 @@ function App() {
     note: "",
     color: FLAG_COLORS[0],
   });
-  const [pasteText, setPasteText] = useState(sampleText);
+  const [pasteText, setPasteText] = useState("");
 
   async function refresh() {
     const [nextSummary, nextEntries, nextFlags] = await Promise.all([
@@ -206,7 +205,12 @@ function App() {
 
         <Panel title="Lim inn lønnshistorikk" subtitle="Eksisterende rader med samme startdato oppdateres.">
           <form onSubmit={importText} className="stack">
-            <textarea value={pasteText} onChange={(event) => setPasteText(event.target.value)} rows={12} />
+            <textarea
+              value={pasteText}
+              onChange={(event) => setPasteText(event.target.value)}
+              rows={12}
+              placeholder="Lim inn lønnshistorikken din her"
+            />
             <button type="submit">Importer tekst</button>
           </form>
         </Panel>
