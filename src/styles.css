@@ -354,7 +354,8 @@ svg .line-area {
   fill: rgba(15, 118, 110, 0.12);
 }
 
-svg .line {
+svg .line,
+svg .percent-line {
   fill: none;
   stroke: #0f766e;
   stroke-width: 4;
@@ -362,7 +363,8 @@ svg .line {
   stroke-linejoin: round;
 }
 
-svg circle {
+svg circle,
+svg .percent-dot {
   fill: #fffaf0;
   stroke: #0f766e;
   stroke-width: 4;
@@ -376,6 +378,66 @@ svg text {
 
 svg .axis-label {
   fill: var(--muted);
+  font-size: 13px;
+}
+
+.percent-card {
+  position: relative;
+}
+
+.chart-summary {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  display: grid;
+  gap: 4px;
+  border-radius: 18px;
+  padding: 0.8rem 1rem;
+  background: rgba(255, 250, 240, 0.82);
+  box-shadow: 0 14px 34px rgba(50, 42, 25, 0.1);
+  text-align: right;
+}
+
+.chart-summary span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chart-summary strong {
+  color: var(--accent);
+  font-size: 1.45rem;
+}
+
+svg .percent-area {
+  fill: rgba(180, 83, 9, 0.12);
+}
+
+svg .percent-line {
+  stroke: #b45309;
+}
+
+svg .percent-dot {
+  stroke: #b45309;
+}
+
+svg .reference-line {
+  stroke: rgba(23, 32, 25, 0.14);
+  stroke-dasharray: 8 8;
+  stroke-width: 2;
+}
+
+svg .average-line {
+  stroke: rgba(15, 118, 110, 0.36);
+  stroke-dasharray: 3 7;
+  stroke-linecap: round;
+  stroke-width: 3;
+}
+
+svg .reference-label {
+  fill: var(--accent);
   font-size: 13px;
 }
 
@@ -479,6 +541,12 @@ th {
   .form-grid,
   .change-row {
     grid-template-columns: 1fr;
+  }
+
+  .chart-summary {
+    position: static;
+    margin-bottom: 12px;
+    text-align: left;
   }
 
   h1 {

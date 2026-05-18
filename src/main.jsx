@@ -349,6 +349,10 @@ function App() {
         <StepChart steps={summary?.steps || []} />
       </Panel>
 
+      <Panel title="Prosentutvikling" subtitle="Prosentvis økning per lønnsår sammenlignet med forrige lønnsår.">
+        <PercentTrendChart yearly={summary?.yearly || []} />
+      </Panel>
+
       <section className="year-grid">
         {(summary?.yearly || []).map((year) => (
           <article key={year.salary_year} className="year-card">
@@ -480,6 +484,60 @@ function StepChart({ steps }) {
             <circle cx={point.x} cy={point.y} r="6" />
             <text x={point.x} y={point.y - 14} textAnchor="middle">
               {new Intl.NumberFormat("nb-NO", { notation: "compact" }).format(point.amount_nok)}
+            </text>
+            <text x={point.x} y={height - 14} textAnchor="middle" className="axis-label">
+              {point.salary_year}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function PercentTrendChart({ yearly }) {
+  const data = yearly.filter((year) => year.change_percent !== null && year.change_percent !== undefined);
+  if (!data.length) return <EmptyChart />;
+
+  const width = 900;
+  const height = 260;
+  const padding = 42;
+  const values = data.map((year) => year.change_percent);
+  const minValue = Math.min(0, ...values);
+  const maxValue = Math.max(0, ...values);
+  const range = maxValue - minValue || 1;
+  const yFor = (value) => height - padding - ((value - minValue) / range) * (height - padding * 2);
+  const points = data.map((year, index) => {
+    const x = padding + (index / Math.max(data.length - 1, 1)) * (width - padding * 2);
+    return { ...year, x, y: yFor(year.change_percent) };
+  });
+  const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const zeroY = yFor(0);
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const averageY = yFor(average);
+
+  return (
+    <div className="svg-wrap percent-card">
+      <div className="chart-summary">
+        <span>Snitt per lønnsår</span>
+        <strong>{percent(average)}</strong>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Prosentvis lønnsutvikling per lønnsår">
+        <line className="reference-line" x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} />
+        <line className="average-line" x1={padding} x2={width - padding} y1={averageY} y2={averageY} />
+        <text x={width - padding} y={averageY - 8} textAnchor="end" className="reference-label">
+          Snitt {percent(average)}
+        </text>
+        <path
+          className="percent-area"
+          d={`${path} L ${points.at(-1).x} ${height - padding} L ${points[0].x} ${height - padding} Z`}
+        />
+        <path className="percent-line" d={path} />
+        {points.map((point) => (
+          <g key={point.salary_year}>
+            <circle className="percent-dot" cx={point.x} cy={point.y} r="6" />
+            <text x={point.x} y={point.y - 14} textAnchor="middle">
+              {percent(point.change_percent)}
             </text>
             <text x={point.x} y={height - 14} textAnchor="middle" className="axis-label">
               {point.salary_year}
