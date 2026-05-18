@@ -385,6 +385,10 @@ svg .axis-label {
   position: relative;
 }
 
+.forecast-card {
+  position: relative;
+}
+
 .chart-summary {
   position: absolute;
   top: 4px;
@@ -411,6 +415,14 @@ svg .axis-label {
   font-size: 1.45rem;
 }
 
+.chart-summary small {
+  color: var(--muted);
+}
+
+.forecast-summary strong {
+  color: var(--accent-2);
+}
+
 svg .percent-area {
   fill: rgba(180, 83, 9, 0.12);
 }
@@ -421,6 +433,24 @@ svg .percent-line {
 
 svg .percent-dot {
   stroke: #b45309;
+}
+
+svg .forecast-area {
+  fill: rgba(180, 83, 9, 0.1);
+}
+
+svg .forecast-line {
+  fill: none;
+  stroke: #b45309;
+  stroke-dasharray: 9 9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+svg .forecast-dot {
+  stroke: #b45309;
+  stroke-dasharray: 3 4;
 }
 
 svg .reference-line {

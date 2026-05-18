@@ -170,6 +170,44 @@ def salary_year_for(valid_from: str, start_month: int) -> int:
     return parsed.year if parsed.month >= start_month else parsed.year - 1
 
 
+def build_predictions(yearly: list[dict[str, Any]], years_ahead: int = 3) -> dict[str, Any]:
+    changes = [
+        float(year["change_percent"])
+        for year in yearly
+        if year.get("change_percent") is not None and year.get("final_amount_nok") is not None
+    ]
+    if not yearly or not changes:
+        return {
+            "method": "average_yearly_percent_change",
+            "average_change_percent": None,
+            "based_on_years": 0,
+            "items": [],
+        }
+
+    average_change_percent = round(sum(changes) / len(changes), 2)
+    growth_factor = 1 + (average_change_percent / 100)
+    latest = yearly[-1]
+    amount = int(latest["final_amount_nok"])
+    predictions = []
+
+    for offset in range(1, years_ahead + 1):
+        amount = round(amount * growth_factor)
+        predictions.append(
+            {
+                "salary_year": int(latest["salary_year"]) + offset,
+                "predicted_amount_nok": amount,
+                "predicted_change_percent": average_change_percent,
+            }
+        )
+
+    return {
+        "method": "average_yearly_percent_change",
+        "average_change_percent": average_change_percent,
+        "based_on_years": len(changes),
+        "items": predictions,
+    }
+
+
 def build_summary(db: sqlite3.Connection) -> dict[str, Any]:
     start_month = get_salary_year_start_month(db)
     entries = [
@@ -229,6 +267,7 @@ def build_summary(db: sqlite3.Connection) -> dict[str, Any]:
         "salary_year_start_month": start_month,
         "steps": steps,
         "yearly": yearly,
+        "predictions": build_predictions(yearly),
         "flags": [flag for flags in flags_by_year.values() for flag in flags],
     }
 

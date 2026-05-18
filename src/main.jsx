@@ -353,6 +353,10 @@ function App() {
         <PercentTrendChart yearly={summary?.yearly || []} />
       </Panel>
 
+      <Panel title="Prognose" subtitle="Forventet lønnsutvikling basert på gjennomsnittlig historisk prosentøkning.">
+        <ForecastChart yearly={summary?.yearly || []} predictions={summary?.predictions} />
+      </Panel>
+
       <section className="year-grid">
         {(summary?.yearly || []).map((year) => (
           <article key={year.salary_year} className="year-card">
@@ -584,6 +588,71 @@ function PercentTrendChart({ yearly }) {
             <circle className="percent-dot" cx={point.x} cy={point.y} r="6" />
             <text x={point.x} y={point.y - 14} textAnchor="middle">
               {percent(point.change_percent)}
+            </text>
+            <text x={point.x} y={height - 14} textAnchor="middle" className="axis-label">
+              {point.salary_year}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function ForecastChart({ yearly, predictions }) {
+  const predictedItems = predictions?.items || [];
+  if (!yearly.length || !predictedItems.length) return <EmptyChart />;
+
+  const width = 900;
+  const height = 280;
+  const padding = 42;
+  const actualPoints = yearly.map((year) => ({
+    salary_year: year.salary_year,
+    amount_nok: year.final_amount_nok,
+    kind: "actual",
+  }));
+  const forecastPoints = predictedItems.map((item) => ({
+    salary_year: item.salary_year,
+    amount_nok: item.predicted_amount_nok,
+    kind: "prediction",
+  }));
+  const points = [...actualPoints, ...forecastPoints];
+  const amounts = points.map((point) => point.amount_nok);
+  const min = Math.min(...amounts) * 0.96;
+  const max = Math.max(...amounts) * 1.04;
+  const positioned = points.map((point, index) => {
+    const x = padding + (index / Math.max(points.length - 1, 1)) * (width - padding * 2);
+    const y = height - padding - ((point.amount_nok - min) / (max - min || 1)) * (height - padding * 2);
+    return { ...point, x, y };
+  });
+  const actualPositioned = positioned.filter((point) => point.kind === "actual");
+  const forecastPositioned = positioned.filter((point) => point.kind === "prediction");
+  const actualPath = actualPositioned.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const connectorPath = `M ${actualPositioned.at(-1).x} ${actualPositioned.at(-1).y} ${forecastPositioned
+    .map((point) => `L ${point.x} ${point.y}`)
+    .join(" ")}`;
+  const firstPrediction = forecastPositioned[0];
+  const lastPrediction = forecastPositioned.at(-1);
+
+  return (
+    <div className="svg-wrap forecast-card">
+      <div className="chart-summary forecast-summary">
+        <span>Basert på {predictions.based_on_years} lønnsår</span>
+        <strong>{percent(predictions.average_change_percent)}</strong>
+        <small>snittvekst brukt fremover</small>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Prognose for fremtidig lønnsutvikling">
+        <path
+          className="forecast-area"
+          d={`${connectorPath} L ${lastPrediction.x} ${height - padding} L ${firstPrediction.x} ${height - padding} Z`}
+        />
+        <path className="line" d={actualPath} />
+        <path className="forecast-line" d={connectorPath} />
+        {positioned.map((point) => (
+          <g key={`${point.kind}-${point.salary_year}`}>
+            <circle className={point.kind === "prediction" ? "forecast-dot" : ""} cx={point.x} cy={point.y} r="6" />
+            <text x={point.x} y={point.y - 14} textAnchor="middle">
+              {new Intl.NumberFormat("nb-NO", { notation: "compact" }).format(point.amount_nok)}
             </text>
             <text x={point.x} y={height - 14} textAnchor="middle" className="axis-label">
               {point.salary_year}

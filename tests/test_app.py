@@ -63,6 +63,10 @@ class SalaryAppTests(unittest.TestCase):
         self.assertEqual(yearly[2023]["final_amount_nok"], 720000)
         self.assertEqual(yearly[2023]["change_nok"], 50000)
         self.assertEqual(yearly[2023]["change_percent"], 7.46)
+        self.assertEqual(summary["predictions"]["average_change_percent"], 9.3)
+        self.assertEqual(summary["predictions"]["based_on_years"], 5)
+        self.assertEqual(summary["predictions"]["items"][0]["salary_year"], 2027)
+        self.assertEqual(summary["predictions"]["items"][0]["predicted_amount_nok"], 939980)
 
     def test_summary_recalculates_when_start_month_changes(self):
         entries = app.parse_salary_text(SAMPLE_TEXT)
