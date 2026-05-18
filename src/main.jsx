@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { dataService, isDemoMode } from "./dataService.js";
+import { sampleText } from "./sampleData.js";
 import "./styles.css";
 
 const MONTHS = [
@@ -18,23 +20,6 @@ const MONTHS = [
 ];
 
 const FLAG_COLORS = ["#d97706", "#0f766e", "#2563eb", "#be123c", "#6d28d9", "#4d7c0f"];
-
-const sampleText = `Årslønn (heltid)
-Gyldig fra\tGyldig til\tNY VERDI
-2026-05-01\t
-NOK 860000
-2025-05-01\t2026-04-30
-NOK 815000
-2024-05-01\t2025-04-30
-NOK 765000
-2023-05-01\t2024-04-30
-NOK 720000
-2022-08-01\t2023-04-30
-NOK 670000
-2022-05-01\t2022-07-31
-NOK 595000
-2021-08-09\t2022-04-30
-NOK 555000`;
 
 function kroner(value) {
   if (value === null || value === undefined) return "Ingen data";
@@ -69,16 +54,6 @@ function median(values) {
   return (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || "Ukjent feil");
-  return payload;
-}
-
 function App() {
   const [summary, setSummary] = useState(null);
   const [entries, setEntries] = useState([]);
@@ -102,9 +77,9 @@ function App() {
 
   async function refresh() {
     const [nextSummary, nextEntries, nextFlags] = await Promise.all([
-      api("/api/summary"),
-      api("/api/salary-entries"),
-      api("/api/year-flags"),
+      dataService.getSummary(),
+      dataService.getSalaryEntries(),
+      dataService.getYearFlags(),
     ]);
     setSummary(nextSummary);
     setEntries(nextEntries);
@@ -121,7 +96,7 @@ function App() {
     try {
       await action();
       await refresh();
-      setMessage(successMessage);
+      setMessage(typeof successMessage === "function" ? successMessage() : successMessage);
     } catch (err) {
       setError(err.message);
     }
@@ -135,24 +110,18 @@ function App() {
         valid_to: salaryForm.valid_to || null,
         amount_nok: Number(salaryForm.amount_nok),
       };
-      if (salaryForm.id) {
-        await api(`/api/salary-entries/${salaryForm.id}`, { method: "PUT", body: JSON.stringify(payload) });
-      } else {
-        await api("/api/salary-entries", { method: "POST", body: JSON.stringify(payload) });
-      }
+      await dataService.saveSalaryEntry(salaryForm.id, payload);
       setSalaryForm({ id: null, valid_from: "", valid_to: "", amount_nok: "" });
     }, "Lønnsrad lagret.");
   }
 
   async function importText(event) {
     event.preventDefault();
+    let imported = 0;
     await run(async () => {
-      const result = await api("/api/import-salary-text", {
-        method: "POST",
-        body: JSON.stringify({ text: pasteText }),
-      });
-      setMessage(`Importerte ${result.imported} rader.`);
-    }, "Import fullført.");
+      const result = await dataService.importSalaryText(pasteText);
+      imported = result.imported;
+    }, () => `Importerte ${imported} rader.`);
   }
 
   async function saveFlag(event) {
@@ -164,32 +133,21 @@ function App() {
         note: flagForm.note || null,
         color: flagForm.color,
       };
-      if (flagForm.id) {
-        await api(`/api/year-flags/${flagForm.id}`, { method: "PUT", body: JSON.stringify(payload) });
-      } else {
-        await api("/api/year-flags", { method: "POST", body: JSON.stringify(payload) });
-      }
+      await dataService.saveYearFlag(flagForm.id, payload);
       setFlagForm({ id: null, salary_year: new Date().getFullYear(), label: "", note: "", color: FLAG_COLORS[0] });
     }, "Flagg lagret.");
   }
 
   async function deleteSalary(id) {
-    await run(async () => api(`/api/salary-entries/${id}`, { method: "DELETE" }), "Lønnsrad slettet.");
+    await run(async () => dataService.deleteSalaryEntry(id), "Lønnsrad slettet.");
   }
 
   async function deleteFlag(id) {
-    await run(async () => api(`/api/year-flags/${id}`, { method: "DELETE" }), "Flagg slettet.");
+    await run(async () => dataService.deleteYearFlag(id), "Flagg slettet.");
   }
 
   async function updateStartMonth(value) {
-    await run(
-      async () =>
-        api("/api/settings/salary-year-start-month", {
-          method: "PUT",
-          body: JSON.stringify({ value: Number(value) }),
-        }),
-      "Lønnsår oppdatert.",
-    );
+    await run(async () => dataService.updateStartMonth(value), "Lønnsår oppdatert.");
   }
 
   const currentSalary = summary?.yearly?.at(-1)?.final_amount_nok;
@@ -217,6 +175,15 @@ function App() {
           <small>Total utvikling: {percent(totalGrowth)}</small>
         </div>
       </section>
+
+      {isDemoMode && (
+        <section className="demo-notice">
+          <strong>Statisk demo</strong>
+          <span>
+            Endringer lagres bare i denne nettleseren. Bruk Docker-versjonen hvis du vil ha lokal SQLite-lagring på egen maskin.
+          </span>
+        </section>
+      )}
 
       <Status error={error} message={message} />
 

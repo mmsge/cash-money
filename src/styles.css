@@ -205,6 +205,29 @@ h2 {
   background: rgba(209, 250, 229, 0.82);
 }
 
+.demo-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  margin: 18px 0;
+  border: 1px solid rgba(15, 118, 110, 0.24);
+  border-radius: 22px;
+  padding: 14px 18px;
+  color: #134e4a;
+  background: rgba(204, 251, 241, 0.72);
+}
+
+.demo-notice strong {
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.demo-notice span {
+  color: #365b55;
+}
+
 .status.error {
   color: #7f1d1d;
   background: rgba(254, 226, 226, 0.9);
@@ -617,6 +640,7 @@ th {
   .hero-card,
   .panel,
   .status,
+  .demo-notice,
   .year-card {
     border-radius: 20px;
     padding: 18px;
