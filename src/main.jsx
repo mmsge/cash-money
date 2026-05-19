@@ -703,7 +703,7 @@ function PercentTrendChart({ yearly }) {
     viewMode === "money"
       ? data.filter((year) => year.change_nok !== null && year.change_nok !== undefined)
       : data.filter((year) =>
-          activePercentMetrics.some((metric) => year[metric.dataKey] !== null && year[metric.dataKey] !== undefined),
+          activePercentMetrics.every((metric) => year[metric.dataKey] !== null && year[metric.dataKey] !== undefined),
         );
   if (!chartData.length) return <EmptyChart />;
 
