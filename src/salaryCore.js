@@ -172,6 +172,30 @@ function roundNok(value) {
   return Math.round(value);
 }
 
+export function addPurchasingPowerGap(yearly) {
+  if (!yearly.length) return [];
+
+  const firstAmount = Number(yearly[0].final_amount_nok);
+  let inflationMaintainedSalary = firstAmount;
+  let cumulativeGap = 0;
+
+  return yearly.map((year, index) => {
+    if (index > 0 && year.inflation_percent !== null && year.inflation_percent !== undefined) {
+      inflationMaintainedSalary = roundNok(inflationMaintainedSalary * (1 + Number(year.inflation_percent) / 100));
+    }
+
+    const annualGap = year.final_amount_nok === null ? null : roundNok(Number(year.final_amount_nok) - inflationMaintainedSalary);
+    cumulativeGap = annualGap === null ? cumulativeGap : roundNok(cumulativeGap + annualGap);
+
+    return {
+      ...year,
+      inflation_maintained_salary_nok: roundNok(inflationMaintainedSalary),
+      annual_gap_nok: annualGap,
+      cumulative_gap_nok: annualGap === null ? null : cumulativeGap,
+    };
+  });
+}
+
 export function buildDashboard(yearly) {
   if (!yearly.length) {
     return {
@@ -346,12 +370,14 @@ export function buildSummary(entries, flags, startMonth = DEFAULT_SALARY_YEAR_ST
       return bucket;
     });
 
+  const yearlyWithPurchasingPower = addPurchasingPowerGap(yearly);
+
   return {
     salary_year_start_month: normalizedStartMonth,
     steps,
-    yearly,
-    dashboard: buildDashboard(yearly),
-    predictions: buildPredictions(yearly),
+    yearly: yearlyWithPurchasingPower,
+    dashboard: buildDashboard(yearlyWithPurchasingPower),
+    predictions: buildPredictions(yearlyWithPurchasingPower),
     flags: sortedFlags,
   };
 }

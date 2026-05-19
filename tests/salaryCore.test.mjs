@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildAdjustmentCalculation, buildDashboard, buildSummary, inflationForSalaryYear, parseSalaryText } from "../src/salaryCore.js";
+import { addPurchasingPowerGap, buildAdjustmentCalculation, buildDashboard, buildSummary, inflationForSalaryYear, parseSalaryText } from "../src/salaryCore.js";
 import { dataService, isDemoMode } from "../src/dataService.js";
 import { CPI_INDEX_BY_MONTH, INFLATION_DATA_META } from "../src/inflationData.js";
 import { sampleText } from "../src/sampleData.js";
@@ -52,12 +52,18 @@ test("buildSummary matches the backend grouping and forecast defaults", () => {
   assert.equal(yearly[2023].change_percent, 4.65);
   assert.equal(yearly[2023].inflation_percent, 2.98);
   assert.equal(yearly[2023].real_change_percent, 1.67);
+  assert.equal(yearly[2023].inflation_maintained_salary_nok, 438983);
+  assert.equal(yearly[2023].annual_gap_nok, 11017);
+  assert.equal(yearly[2023].cumulative_gap_nok, 14737);
   assert.equal(yearly[2023].inflation_period, "2023-05 til 2024-05");
   assert.match(yearly[2023].inflation_source, /SSB StatBank/);
   assert.equal(yearly[2025].inflation_percent, 2.9);
   assert.equal(yearly[2025].inflation_preliminary, true);
   assert.equal(yearly[2025].inflation_period, "2025-05 til 2026-04 (foreløpig, mål 2026-05)");
   assert.equal(yearly[2025].real_change_percent, 2.42);
+  assert.equal(yearly[2026].inflation_maintained_salary_nok, 465716);
+  assert.equal(yearly[2026].annual_gap_nok, 54284);
+  assert.equal(yearly[2026].cumulative_gap_nok, 115714);
   assert.equal(summary.dashboard.current_salary_nok, 520000);
   assert.equal(summary.dashboard.total_nominal_growth_percent, 30);
   assert.equal(summary.dashboard.cumulative_real_growth_percent, 5.46);
@@ -96,6 +102,28 @@ test("buildDashboard computes purchasing power gap and below-inflation years fro
   assert.equal(dashboard.cumulative_real_growth_percent, -1.49);
   assert.equal(dashboard.below_inflation_years_count, 1);
   assert.equal(dashboard.purchasing_power_adjustment_nok, 7875);
+});
+
+test("addPurchasingPowerGap builds inflation-maintained salary and rolling NOK gaps", () => {
+  const yearly = addPurchasingPowerGap([
+    { salary_year: 2021, final_amount_nok: 500000, inflation_percent: 2.5 },
+    { salary_year: 2022, final_amount_nok: 510000, inflation_percent: 3 },
+    { salary_year: 2023, final_amount_nok: 520000, inflation_percent: null },
+  ]);
+
+  assert.deepEqual(
+    yearly.map((year) => ({
+      salary_year: year.salary_year,
+      inflation_maintained_salary_nok: year.inflation_maintained_salary_nok,
+      annual_gap_nok: year.annual_gap_nok,
+      cumulative_gap_nok: year.cumulative_gap_nok,
+    })),
+    [
+      { salary_year: 2021, inflation_maintained_salary_nok: 500000, annual_gap_nok: 0, cumulative_gap_nok: 0 },
+      { salary_year: 2022, inflation_maintained_salary_nok: 515000, annual_gap_nok: -5000, cumulative_gap_nok: -5000 },
+      { salary_year: 2023, inflation_maintained_salary_nok: 515000, annual_gap_nok: 5000, cumulative_gap_nok: 0 },
+    ],
+  );
 });
 
 test("buildAdjustmentCalculation supports target annual salary input", () => {
