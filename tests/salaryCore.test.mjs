@@ -17,6 +17,28 @@ test("parseSalaryText parses the HR salary sample", () => {
   assert.equal(entries.at(-1).amount_nok, 520000);
 });
 
+test("parseSalaryText supports mixed day-first and ISO pasted date formats", () => {
+  const text = `02.05.2025 01052026
+NOK 800000
+2024-05-01 30-04-2025
+760000
+09082021 30042022
+NOK 555000`;
+  const entries = parseSalaryText(text);
+
+  assert.equal(entries.length, 3);
+  assert.equal(entries[0].valid_from, "2021-08-09");
+  assert.equal(entries[0].valid_to, "2022-04-30");
+  assert.equal(entries[1].valid_from, "2024-05-01");
+  assert.equal(entries[1].valid_to, "2025-04-30");
+  assert.equal(entries[2].valid_from, "2025-05-02");
+  assert.equal(entries[2].valid_to, "2026-05-01");
+});
+
+test("parseSalaryText rejects invalid day-first calendar dates", () => {
+  assert.throws(() => parseSalaryText("32.01.2024\nNOK 500000"), /Ugyldig dato/);
+});
+
 test("buildSummary matches the backend grouping and forecast defaults", () => {
   const entries = parseSalaryText(sampleText).map((entry, index) => ({ id: index + 1, ...entry }));
   const summary = buildSummary(entries, [], 5);

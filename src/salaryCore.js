@@ -10,6 +10,39 @@ function parseIsoDate(value) {
   return parsed;
 }
 
+function normalizeDateToken(rawValue) {
+  const value = String(rawValue || "").trim();
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const dayFirstSeparated = value.match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$/);
+  if (dayFirstSeparated) {
+    const day = dayFirstSeparated[1].padStart(2, "0");
+    const month = dayFirstSeparated[2].padStart(2, "0");
+    const year = dayFirstSeparated[3];
+    return `${year}-${month}-${day}`;
+  }
+  const dayFirstCompact = value.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (dayFirstCompact) {
+    const day = dayFirstCompact[1];
+    const month = dayFirstCompact[2];
+    const year = dayFirstCompact[3];
+    return `${year}-${month}-${day}`;
+  }
+  return null;
+}
+
+function parseDateLine(line) {
+  const match = String(line || "").trim().match(/^(\S+)(?:\s+(\S+))?$/);
+  if (!match) return null;
+  const validFrom = normalizeDateToken(match[1]);
+  if (!validFrom) return null;
+  const validTo = match[2] ? normalizeDateToken(match[2]) : null;
+  if (match[2] && !validTo) return null;
+  parseIsoDate(validFrom);
+  if (validTo) parseIsoDate(validTo);
+  return { valid_from: validFrom, valid_to: validTo };
+}
+
 export function validateSalaryEntry(payload) {
   const validFrom = String(payload.valid_from || "").trim();
   const validTo = payload.valid_to === null || payload.valid_to === undefined ? null : String(payload.valid_to).trim() || null;
@@ -32,29 +65,25 @@ export function parseSalaryText(text) {
     .map((line) => line.trim())
     .filter(Boolean);
   const entries = [];
-  const datePattern = /^(\d{4}-\d{2}-\d{2})(?:\s+(\d{4}-\d{2}-\d{2}))?$/;
   const amountPattern = /^(?:NOK\s*)?([\d\s.,]+)$/i;
 
   let index = 0;
   while (index < lines.length) {
-    const dateMatch = lines[index].match(datePattern);
-    if (!dateMatch) {
+    const dateEntry = parseDateLine(lines[index]);
+    if (!dateEntry) {
       index += 1;
       continue;
     }
-
-    const validFrom = dateMatch[1];
-    const validTo = dateMatch[2] || null;
     index += 1;
     while (index < lines.length) {
       const amountMatch = lines[index].match(amountPattern);
       if (amountMatch) {
         const amountText = amountMatch[1].replaceAll(" ", "").replaceAll(".", "").replaceAll(",", "");
-        entries.push(validateSalaryEntry({ valid_from: validFrom, valid_to: validTo, amount_nok: amountText }));
+        entries.push(validateSalaryEntry({ ...dateEntry, amount_nok: amountText }));
         index += 1;
         break;
       }
-      if (datePattern.test(lines[index])) break;
+      if (parseDateLine(lines[index])) break;
       index += 1;
     }
   }

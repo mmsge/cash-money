@@ -34,10 +34,16 @@ const MONTHS = [
 ];
 
 const FLAG_COLORS = ["#d97706", "#0f766e", "#2563eb", "#be123c", "#6d28d9", "#4d7c0f"];
-const IMPORT_FORMAT_EXAMPLE = `2026-05-01
+const IMPORT_FORMAT_EXAMPLE = `01.05.2026
 NOK 456000
 
-2025-05-01 2026-04-30
+01-05-2025 30-04-2026
+432000
+
+01/05/2024 30/04/2025
+765000
+
+01052023 30042024
 432000`;
 
 function kroner(value) {
@@ -236,7 +242,10 @@ function App() {
             <div className="import-format">
               <p>Forventet format per lønnsrad:</p>
               <ul>
-                <li>første linje: <code>YYYY-MM-DD</code> eller <code>YYYY-MM-DD YYYY-MM-DD</code></li>
+                <li>
+                  første linje: datoformat <code>YYYY-MM-DD</code>, <code>DD.MM.YYYY</code>, <code>DD-MM-YYYY</code>,{" "}
+                  <code>DD/MM/YYYY</code> eller <code>DDMMYYYY</code> (valgfritt med sluttdato)
+                </li>
                 <li>neste linje: årslønn som heltall, valgfritt med <code>NOK</code></li>
                 <li>annen tekst som overskrifter og tomme linjer ignoreres</li>
               </ul>
@@ -246,7 +255,7 @@ function App() {
               value={pasteText}
               onChange={(event) => setPasteText(event.target.value)}
               rows={12}
-              placeholder={"2026-05-01\nNOK 456000\n\n2025-05-01 2026-04-30\n432000"}
+              placeholder={"01.05.2026\nNOK 456000\n\n01-05-2025 30-04-2026\n432000\n\n01052023 30042024\n765000"}
             />
             <button type="submit">Importer tekst</button>
           </form>
