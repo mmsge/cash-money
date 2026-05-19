@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { buildSummary, inflationForSalaryYear, parseSalaryText } from "../src/salaryCore.js";
 import { dataService, isDemoMode } from "../src/dataService.js";
+import { CPI_INDEX_BY_MONTH, INFLATION_DATA_META } from "../src/inflationData.js";
 import { sampleText } from "../src/sampleData.js";
 
 test("parseSalaryText parses the HR salary sample", () => {
@@ -31,8 +32,10 @@ test("buildSummary matches the backend grouping and forecast defaults", () => {
   assert.equal(yearly[2023].real_change_percent, 1.67);
   assert.equal(yearly[2023].inflation_period, "2023-05 til 2024-05");
   assert.match(yearly[2023].inflation_source, /SSB StatBank/);
-  assert.equal(yearly[2025].inflation_percent, null);
-  assert.equal(yearly[2025].real_change_percent, null);
+  assert.equal(yearly[2025].inflation_percent, 2.9);
+  assert.equal(yearly[2025].inflation_preliminary, true);
+  assert.equal(yearly[2025].inflation_period, "2025-05 til 2026-04 (foreløpig, mål 2026-05)");
+  assert.equal(yearly[2025].real_change_percent, 2.42);
   assert.equal(summary.predictions.average_change_percent, 5.39);
   assert.equal(summary.predictions.based_on_years, 5);
   assert.equal(summary.predictions.items[0].salary_year, 2027);
@@ -57,6 +60,27 @@ test("inflationForSalaryYear returns null when the end month is missing", () => 
 
   assert.equal(inflation.inflation_period, "2026-05 til 2027-05");
   assert.equal(inflation.inflation_percent, null);
+  assert.equal(inflation.inflation_preliminary, false);
+});
+
+test("inflationForSalaryYear returns preliminary inflation when only the full end month is missing", () => {
+  const inflation = inflationForSalaryYear(2025, 5);
+
+  assert.equal(inflation.inflation_period, "2025-05 til 2026-04 (foreløpig, mål 2026-05)");
+  assert.equal(inflation.inflation_percent, 2.9);
+  assert.equal(inflation.inflation_preliminary, true);
+});
+
+test("embedded SSB CPI data includes historical and latest generated coverage", () => {
+  const months = Object.keys(CPI_INDEX_BY_MONTH).sort();
+
+  assert.equal(INFLATION_DATA_META.table, "14709");
+  assert.equal(INFLATION_DATA_META.base_period, "2025=100");
+  assert.equal(INFLATION_DATA_META.first_month, "1920-03");
+  assert.equal(INFLATION_DATA_META.latest_month, months.at(-1));
+  assert.ok(INFLATION_DATA_META.latest_month >= "2026-04");
+  assert.equal(CPI_INDEX_BY_MONTH["1920-03"], 3.7);
+  assert.equal(CPI_INDEX_BY_MONTH["2026-04"], 102.8);
 });
 
 test("default frontend data service remains API-backed", () => {

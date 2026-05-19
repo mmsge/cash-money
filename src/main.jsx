@@ -73,6 +73,14 @@ function median(values) {
   return (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+function inflationLabel(year, label = "Inflasjon") {
+  return year?.inflation_preliminary ? `${label} (foreløpig)` : label;
+}
+
+function realWageLabel(year, label = "Reallønnsvekst") {
+  return year?.inflation_preliminary && year?.real_change_percent !== null && year?.real_change_percent !== undefined ? `${label} (foreløpig)` : label;
+}
+
 function App() {
   const [summary, setSummary] = useState(null);
   const [entries, setEntries] = useState([]);
@@ -387,8 +395,8 @@ function App() {
             </div>
             <div className="year-metrics">
               <Metric label="Lønnsvekst" value={percent(year.change_percent)} />
-              <Metric label="Inflasjon" value={percent(year.inflation_percent, "mangler")} title={year.inflation_period} />
-              <Metric label="Reallønnsvekst" value={percent(year.real_change_percent, "mangler")} />
+              <Metric label={inflationLabel(year)} value={percent(year.inflation_percent, "mangler")} title={year.inflation_period} />
+              <Metric label={realWageLabel(year)} value={percent(year.real_change_percent, "mangler")} />
             </div>
             <div className="chips">
               {year.flags.map((flag) => (
@@ -650,103 +658,150 @@ function StepChart({ steps, yearly }) {
 }
 
 function PercentTrendChart({ yearly }) {
-  const [mode, setMode] = useState("percent");
-  const metricConfig = {
+  const [viewMode, setViewMode] = useState("percent");
+  const [visiblePercentSeries, setVisiblePercentSeries] = useState({
+    percent: true,
+    real: true,
+    inflation: true,
+  });
+  const percentMetrics = {
     percent: {
       label: "Lønnsvekst",
-      value: (year) => year.change_percent,
+      dataKey: "change_percent",
       format: percent,
-      ariaLabel: "Nominell prosentvis lønnsutvikling per lønnsår",
       color: "#b45309",
-      fill: "rgba(180, 83, 9, 0.14)",
     },
     real: {
       label: "Reallønn",
-      value: (year) => year.real_change_percent,
+      dataKey: "real_change_percent",
       format: (value) => percent(value, "mangler"),
-      ariaLabel: "Reallønnsvekst per lønnsår etter inflasjon",
       color: "#0f766e",
-      fill: "rgba(15, 118, 110, 0.14)",
     },
     inflation: {
       label: "Inflasjon",
-      value: (year) => year.inflation_percent,
+      dataKey: "inflation_percent",
       format: (value) => percent(value, "mangler"),
-      ariaLabel: "Inflasjon per lønnsår basert på SSB KPI",
       color: "#2563eb",
-      fill: "rgba(37, 99, 235, 0.13)",
-    },
-    money: {
-      label: "Kroner",
-      value: (year) => year.change_nok,
-      format: compactKroner,
-      ariaLabel: "Lønnsøkning i kroner per lønnsår",
-      color: "#b45309",
-      fill: "rgba(180, 83, 9, 0.14)",
     },
   };
-  const config = metricConfig[mode];
-  const data = yearly
-    .filter((year) => {
-      const value = config.value(year);
-      return value !== null && value !== undefined;
-    })
-    .map((year) => ({
-      ...year,
-      year_label: String(year.salary_year),
-      metric_value: config.value(year),
-    }));
-  if (!data.length) return <EmptyChart />;
+  const moneyMetric = {
+    label: "Kroner",
+    dataKey: "change_nok",
+    format: compactKroner,
+    color: "#b45309",
+    fill: "rgba(180, 83, 9, 0.14)",
+  };
+  const activePercentMetricKeys = Object.keys(percentMetrics).filter((key) => visiblePercentSeries[key]);
+  const activePercentMetrics = activePercentMetricKeys.map((key) => ({ key, ...percentMetrics[key] }));
+  const activePercentCount = activePercentMetricKeys.length;
 
-  const values = data.map((year) => year.metric_value);
-  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
-  const medianValue = median(values);
-  const formatValue = config.format;
+  function togglePercentSeries(key) {
+    setVisiblePercentSeries((current) => {
+      if (current[key] && Object.values(current).filter(Boolean).length === 1) return current;
+      return { ...current, [key]: !current[key] };
+    });
+  }
+
+  const data = yearly.map((year) => ({
+    ...year,
+    year_label: String(year.salary_year),
+    metric_value: year.change_nok,
+  }));
+  const chartData =
+    viewMode === "money"
+      ? data.filter((year) => year.change_nok !== null && year.change_nok !== undefined)
+      : data.filter((year) =>
+          activePercentMetrics.some((metric) => year[metric.dataKey] !== null && year[metric.dataKey] !== undefined),
+        );
+  if (!chartData.length) return <EmptyChart />;
+
+  const moneyValues = chartData.map((year) => year.metric_value).filter((value) => value !== null && value !== undefined);
+  const moneyAverage = moneyValues.reduce((sum, value) => sum + value, 0) / moneyValues.length;
+  const moneyMedian = median(moneyValues);
+  const percentAverages = activePercentMetrics.map((metric) => {
+    const values = chartData.map((year) => year[metric.dataKey]).filter((value) => value !== null && value !== undefined);
+    return {
+      ...metric,
+      average: values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null,
+    };
+  });
+  const hasPreliminaryPercent = viewMode === "percent" && activePercentMetrics.some((metric) => metric.key === "inflation" || metric.key === "real") && chartData.some((year) => year.inflation_preliminary);
 
   return (
-    <div className="chart-card" aria-label={config.ariaLabel}>
+    <div className="chart-card" aria-label={viewMode === "money" ? "Lønnsøkning i kroner per lønnsår" : "Prosentutvikling per lønnsår"}>
       <div className="chart-toolbar">
         <div className="chart-toggle" aria-label="Velg visning">
-          <button className={mode === "percent" ? "active" : ""} type="button" onClick={() => setMode("percent")}>
-            Lønnsvekst
+          <button className={viewMode === "percent" ? "active" : ""} type="button" onClick={() => setViewMode("percent")}>
+            Prosent
           </button>
-          <button className={mode === "real" ? "active" : ""} type="button" onClick={() => setMode("real")}>
-            Reallønn
-          </button>
-          <button className={mode === "inflation" ? "active" : ""} type="button" onClick={() => setMode("inflation")}>
-            Inflasjon
-          </button>
-          <button className={mode === "money" ? "active" : ""} type="button" onClick={() => setMode("money")}>
+          <button className={viewMode === "money" ? "active" : ""} type="button" onClick={() => setViewMode("money")}>
             Kroner
           </button>
         </div>
-        <div className="chart-summary">
-          <span>Viser</span>
-          <strong>{config.label}</strong>
-          <span>Snitt</span>
-          <strong>{formatValue(average)}</strong>
-          <span>Median</span>
-          <strong>{formatValue(medianValue)}</strong>
-        </div>
+        {viewMode === "percent" ? (
+          <div className="chart-summary chart-summary-list">
+            <span>Snitt</span>
+            {percentAverages.map((metric) => (
+              <p key={metric.key} style={{ "--series-color": metric.color }}>
+                <small>{metric.label}</small>
+                <strong>{metric.format(metric.average, "mangler")}</strong>
+              </p>
+            ))}
+          </div>
+        ) : (
+          <div className="chart-summary">
+            <span>Viser</span>
+            <strong>{moneyMetric.label}</strong>
+            <span>Snitt</span>
+            <strong>{moneyMetric.format(moneyAverage)}</strong>
+            <span>Median</span>
+            <strong>{moneyMetric.format(moneyMedian)}</strong>
+          </div>
+        )}
       </div>
+      {viewMode === "percent" ? (
+        <div className="series-toggle" aria-label="Velg prosentserier">
+          {Object.entries(percentMetrics).map(([key, metric]) => (
+            <label key={key} style={{ "--series-color": metric.color }}>
+              <input
+                type="checkbox"
+                checked={visiblePercentSeries[key]}
+                disabled={visiblePercentSeries[key] && activePercentCount === 1}
+                onChange={() => togglePercentSeries(key)}
+              />
+              <span>{metric.label}</span>
+            </label>
+          ))}
+        </div>
+      ) : null}
       <p className="chart-note">
         Inflasjon følger valgt lønnsår og bruker SSB KPI totalindeks fra startmåned til samme måned året etter.
+        {hasPreliminaryPercent ? " Foreløpige punkter bruker siste publiserte SSB-måned." : ""}
       </p>
       <ChartFrame className="wide">
         <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={260} initialDimension={{ width: 240, height: 260 }}>
-          <ComposedChart data={data} margin={{ top: 18, right: 28, left: 8, bottom: 8 }}>
+          <ComposedChart data={chartData} margin={{ top: 18, right: 28, left: 8, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 5" vertical={false} />
             <XAxis dataKey="year_label" interval="preserveStartEnd" tickLine={false} />
-            <YAxis tickFormatter={mode === "money" ? compactNumber : (value) => `${value}%`} tickLine={false} width={58} />
+            <YAxis tickFormatter={viewMode === "money" ? compactNumber : (value) => `${value}%`} tickLine={false} width={58} />
             <Tooltip
               content={
                 <ChartTooltip
                   rows={(item) => [
-                    { label: config.label, value: formatValue(item.metric_value) },
+                    ...(viewMode === "percent"
+                      ? activePercentMetrics.map((metric) => ({
+                          label: metric.key === "inflation" ? inflationLabel(item, metric.label) : metric.key === "real" ? realWageLabel(item, metric.label) : metric.label,
+                          value: metric.format(item[metric.dataKey], "mangler"),
+                        }))
+                      : [{ label: moneyMetric.label, value: moneyMetric.format(item.metric_value) }]),
                     { label: "Økning", value: compactKroner(item.change_nok) },
-                    { label: "Lønnsvekst", value: percent(item.change_percent) },
-                    { label: "Inflasjon", value: percent(item.inflation_percent, "mangler") },
-                    { label: "Reallønnsvekst", value: percent(item.real_change_percent, "mangler") },
+                    ...(viewMode === "money"
+                      ? [
+                          { label: "Lønnsvekst", value: percent(item.change_percent) },
+                          { label: inflationLabel(item), value: percent(item.inflation_percent, "mangler") },
+                          { label: realWageLabel(item), value: percent(item.real_change_percent, "mangler") },
+                        ]
+                      : []),
                     { label: "Inflasjonsperiode", value: item.inflation_period || "mangler" },
                     { label: "Sluttlønn", value: kroner(item.final_amount_nok) },
                     { label: "Antall lønnstrinn", value: item.steps.length },
@@ -756,11 +811,42 @@ function PercentTrendChart({ yearly }) {
             />
             <Legend />
             <ReferenceLine y={0} stroke="rgba(23, 32, 25, 0.22)" strokeDasharray="6 6" />
-            <ReferenceLine y={average} stroke="#0f766e" strokeDasharray="4 7" label={{ value: `Snitt ${formatValue(average)}`, position: "right", fill: "#0f766e", fontSize: 12 }} />
-            <ReferenceLine y={medianValue} stroke="#b45309" strokeDasharray="8 7" label={{ value: `Median ${formatValue(medianValue)}`, position: "right", fill: "#b45309", fontSize: 12 }} />
-            <FlagReferenceLines flags={yearly} data={data} xKey="year_label" />
-            <Area type="monotone" dataKey="metric_value" name={config.label} stroke="none" fill={config.fill} legendType="none" />
-            <Line type="monotone" dataKey="metric_value" name={config.label} stroke={config.color} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 7 }} />
+            {viewMode === "money" ? (
+              <>
+                <ReferenceLine
+                  y={moneyAverage}
+                  stroke="#0f766e"
+                  strokeDasharray="4 7"
+                  label={{ value: `Snitt ${moneyMetric.format(moneyAverage)}`, position: "right", fill: "#0f766e", fontSize: 12 }}
+                />
+                <ReferenceLine
+                  y={moneyMedian}
+                  stroke="#b45309"
+                  strokeDasharray="8 7"
+                  label={{ value: `Median ${moneyMetric.format(moneyMedian)}`, position: "right", fill: "#b45309", fontSize: 12 }}
+                />
+              </>
+            ) : null}
+            <FlagReferenceLines flags={yearly} data={chartData} xKey="year_label" />
+            {viewMode === "money" ? (
+              <>
+                <Area type="monotone" dataKey="metric_value" name={moneyMetric.label} stroke="none" fill={moneyMetric.fill} legendType="none" />
+                <Line type="monotone" dataKey="metric_value" name={moneyMetric.label} stroke={moneyMetric.color} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 7 }} />
+              </>
+            ) : (
+              activePercentMetrics.map((metric) => (
+                <Line
+                  key={metric.key}
+                  type="monotone"
+                  dataKey={metric.dataKey}
+                  name={metric.label}
+                  stroke={metric.color}
+                  strokeWidth={3}
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 7 }}
+                />
+              ))
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </ChartFrame>

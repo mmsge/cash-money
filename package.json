@@ -11,7 +11,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "npm run test:js && npm run test:py",
     "test:js": "node --test tests/*.test.mjs",
-    "test:py": "python3 -m unittest discover -s tests"
+    "test:py": "python3 -m unittest discover -s tests",
+    "update:inflation": "node scripts/update_inflation_data.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
