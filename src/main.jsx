@@ -20,10 +20,10 @@ const MONTHS = [
 
 const FLAG_COLORS = ["#d97706", "#0f766e", "#2563eb", "#be123c", "#6d28d9", "#4d7c0f"];
 const IMPORT_FORMAT_EXAMPLE = `2026-05-01
-NOK 860000
+NOK 200000
 
 2025-05-01 2026-04-30
-815000`;
+100000`;
 
 function kroner(value) {
   if (value === null || value === undefined) return "Ingen data";
