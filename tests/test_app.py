@@ -63,6 +63,12 @@ class SalaryAppTests(unittest.TestCase):
         self.assertEqual(yearly[2023]["final_amount_nok"], 720000)
         self.assertEqual(yearly[2023]["change_nok"], 50000)
         self.assertEqual(yearly[2023]["change_percent"], 7.46)
+        self.assertEqual(yearly[2023]["inflation_percent"], 2.98)
+        self.assertEqual(yearly[2023]["real_change_percent"], 4.48)
+        self.assertEqual(yearly[2023]["inflation_period"], "2023-05 til 2024-05")
+        self.assertIn("SSB StatBank", yearly[2023]["inflation_source"])
+        self.assertEqual(yearly[2025]["inflation_percent"], None)
+        self.assertEqual(yearly[2025]["real_change_percent"], None)
         self.assertEqual(summary["predictions"]["average_change_percent"], 9.3)
         self.assertEqual(summary["predictions"]["based_on_years"], 5)
         self.assertEqual(summary["predictions"]["items"][0]["salary_year"], 2027)
@@ -92,6 +98,15 @@ class SalaryAppTests(unittest.TestCase):
         self.assertEqual(summary["salary_year_start_month"], 1)
         self.assertEqual(yearly[2022]["final_amount_nok"], 670000)
         self.assertEqual(yearly[2022]["change_percent"], 20.72)
+        self.assertEqual(yearly[2022]["inflation_period"], "2022-01 til 2023-01")
+        self.assertEqual(yearly[2022]["inflation_percent"], 7.02)
+        self.assertEqual(yearly[2022]["real_change_percent"], 13.7)
+
+    def test_inflation_for_salary_year_returns_none_when_end_month_is_missing(self):
+        inflation = app.inflation_for_salary_year(2026, 5)
+
+        self.assertEqual(inflation["inflation_period"], "2026-05 til 2027-05")
+        self.assertEqual(inflation["inflation_percent"], None)
 
 
 if __name__ == "__main__":

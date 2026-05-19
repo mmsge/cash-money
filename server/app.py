@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from .inflation_data import CPI_INDEX_BY_MONTH, INFLATION_SOURCE
+
 
 DB_PATH = Path(os.environ.get("DB_PATH", "/data/salary.sqlite"))
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", Path(__file__).resolve().parent.parent / "dist"))
@@ -170,6 +172,26 @@ def salary_year_for(valid_from: str, start_month: int) -> int:
     return parsed.year if parsed.month >= start_month else parsed.year - 1
 
 
+def month_key(year: int, month: int) -> str:
+    return f"{year:04d}-{month:02d}"
+
+
+def inflation_for_salary_year(salary_year: int, start_month: int) -> dict[str, Any]:
+    start_key = month_key(salary_year, start_month)
+    end_key = month_key(salary_year + 1, start_month)
+    start_index = CPI_INDEX_BY_MONTH.get(start_key)
+    end_index = CPI_INDEX_BY_MONTH.get(end_key)
+    inflation_percent = None
+    if start_index is not None and end_index is not None:
+        inflation_percent = round(((end_index - start_index) / start_index) * 100, 2)
+
+    return {
+        "inflation_period": f"{start_key} til {end_key}",
+        "inflation_source": INFLATION_SOURCE,
+        "inflation_percent": inflation_percent,
+    }
+
+
 def build_predictions(yearly: list[dict[str, Any]], years_ahead: int = 3) -> dict[str, Any]:
     changes = [
         float(year["change_percent"])
@@ -246,6 +268,10 @@ def build_summary(db: sqlite3.Connection) -> dict[str, Any]:
                 "final_amount_nok": None,
                 "change_nok": None,
                 "change_percent": None,
+                "inflation_percent": None,
+                "real_change_percent": None,
+                "inflation_period": None,
+                "inflation_source": INFLATION_SOURCE,
             },
         )
         year_bucket["steps"].append(step)
@@ -256,10 +282,16 @@ def build_summary(db: sqlite3.Connection) -> dict[str, Any]:
     for salary_year in sorted(years):
         bucket = years[salary_year]
         final_amount = bucket["final_amount_nok"]
+        inflation = inflation_for_salary_year(salary_year, start_month)
         bucket["flags"] = flags_by_year.get(salary_year, [])
+        bucket["inflation_percent"] = inflation["inflation_percent"]
+        bucket["inflation_period"] = inflation["inflation_period"]
+        bucket["inflation_source"] = inflation["inflation_source"]
         if previous_amount and final_amount:
             bucket["change_nok"] = final_amount - previous_amount
             bucket["change_percent"] = round(((final_amount - previous_amount) / previous_amount) * 100, 2)
+            if bucket["inflation_percent"] is not None:
+                bucket["real_change_percent"] = round(bucket["change_percent"] - bucket["inflation_percent"], 2)
         previous_amount = final_amount
         yearly.append(bucket)
 

@@ -1,3 +1,5 @@
+import { CPI_INDEX_BY_MONTH, INFLATION_SOURCE } from "./inflationData.js";
+
 export const DEFAULT_SALARY_YEAR_START_MONTH = 5;
 
 function parseIsoDate(value) {
@@ -68,6 +70,28 @@ export function salaryYearFor(validFrom, startMonth) {
   return month >= startMonth ? year : year - 1;
 }
 
+function roundPercent(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function monthKey(year, month) {
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+}
+
+export function inflationForSalaryYear(salaryYear, startMonth) {
+  const startKey = monthKey(salaryYear, startMonth);
+  const endKey = monthKey(salaryYear + 1, startMonth);
+  const startIndex = CPI_INDEX_BY_MONTH[startKey];
+  const endIndex = CPI_INDEX_BY_MONTH[endKey];
+
+  return {
+    inflation_period: `${startKey} til ${endKey}`,
+    inflation_source: INFLATION_SOURCE,
+    inflation_percent:
+      startIndex === undefined || endIndex === undefined ? null : roundPercent(((endIndex - startIndex) / startIndex) * 100),
+  };
+}
+
 export function buildPredictions(yearly, yearsAhead = 3) {
   const changes = yearly
     .filter((year) => year.change_percent !== null && year.change_percent !== undefined && year.final_amount_nok !== null)
@@ -130,6 +154,10 @@ export function buildSummary(entries, flags, startMonth = DEFAULT_SALARY_YEAR_ST
         final_amount_nok: null,
         change_nok: null,
         change_percent: null,
+        inflation_percent: null,
+        real_change_percent: null,
+        inflation_period: null,
+        inflation_source: INFLATION_SOURCE,
       });
     }
     const bucket = years.get(salaryYear);
@@ -142,10 +170,17 @@ export function buildSummary(entries, flags, startMonth = DEFAULT_SALARY_YEAR_ST
     .sort((a, b) => a - b)
     .map((salaryYear) => {
       const bucket = years.get(salaryYear);
+      const inflation = inflationForSalaryYear(salaryYear, normalizedStartMonth);
       bucket.flags = flagsByYear.get(salaryYear) || [];
+      bucket.inflation_percent = inflation.inflation_percent;
+      bucket.inflation_period = inflation.inflation_period;
+      bucket.inflation_source = inflation.inflation_source;
       if (previousAmount && bucket.final_amount_nok) {
         bucket.change_nok = bucket.final_amount_nok - previousAmount;
-        bucket.change_percent = Math.round(((bucket.final_amount_nok - previousAmount) / previousAmount) * 10000) / 100;
+        bucket.change_percent = roundPercent(((bucket.final_amount_nok - previousAmount) / previousAmount) * 100);
+        if (bucket.inflation_percent !== null && bucket.inflation_percent !== undefined) {
+          bucket.real_change_percent = roundPercent(bucket.change_percent - bucket.inflation_percent);
+        }
       }
       previousAmount = bucket.final_amount_nok;
       return bucket;

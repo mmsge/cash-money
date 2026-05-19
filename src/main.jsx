@@ -34,8 +34,8 @@ function kroner(value) {
   }).format(value);
 }
 
-function percent(value) {
-  if (value === null || value === undefined) return "første år";
+function percent(value, fallback = "første år") {
+  if (value === null || value === undefined) return fallback;
   const sign = value > 0 ? "+" : "";
   return `${sign}${new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 2 }).format(value)} %`;
 }
@@ -170,7 +170,7 @@ function App() {
           <h1>Lønnsutvikling over tid</h1>
           <p>
             Legg inn lønn manuelt eller lim inn historikk fra HR-systemet. Appen grupperer etter lønnsår,
-            viser lønnstrinn, prosentendring og hendelsesflagg.
+            viser lønnstrinn, prosentendring, inflasjon, reallønnsvekst og hendelsesflagg.
           </p>
         </div>
         <div className="hero-card">
@@ -352,7 +352,10 @@ function App() {
         <StepChart steps={summary?.steps || []} yearly={summary?.yearly || []} />
       </Panel>
 
-      <Panel title="Prosentutvikling" subtitle="Prosentvis økning per lønnsår sammenlignet med forrige lønnsår.">
+      <Panel
+        title="Prosentutvikling"
+        subtitle="Nominell lønnsvekst, SSB KPI-inflasjon og reallønnsvekst per lønnsår."
+      >
         <PercentTrendChart yearly={summary?.yearly || []} />
       </Panel>
 
@@ -367,7 +370,11 @@ function App() {
               <span>Lønnsår {year.salary_year}</span>
               <strong>{kroner(year.final_amount_nok)}</strong>
             </div>
-            <p>{percent(year.change_percent)} fra forrige lønnsår</p>
+            <div className="year-metrics">
+              <Metric label="Lønnsvekst" value={percent(year.change_percent)} />
+              <Metric label="Inflasjon" value={percent(year.inflation_percent, "mangler")} title={year.inflation_period} />
+              <Metric label="Reallønnsvekst" value={percent(year.real_change_percent, "mangler")} />
+            </div>
             <div className="chips">
               {year.flags.map((flag) => (
                 <span key={flag.id} className="chip" style={{ "--chip-color": flag.color }}>
@@ -425,6 +432,15 @@ function Panel({ title, subtitle, children }) {
       </div>
       {children}
     </section>
+  );
+}
+
+function Metric({ label, value, title }) {
+  return (
+    <p className="metric" title={title || undefined}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </p>
   );
 }
 
@@ -567,20 +583,62 @@ Gyldig fra: ${point.valid_from}
 
 function PercentTrendChart({ yearly }) {
   const [mode, setMode] = useState("percent");
-  const data = yearly.filter((year) => year.change_percent !== null && year.change_percent !== undefined);
+  const metricConfig = {
+    percent: {
+      label: "Lønnsvekst",
+      value: (year) => year.change_percent,
+      format: percent,
+      ariaLabel: "Nominell prosentvis lønnsutvikling per lønnsår",
+      lineClass: "percent-line",
+      dotClass: "percent-dot",
+      areaClass: "percent-area",
+    },
+    real: {
+      label: "Reallønn",
+      value: (year) => year.real_change_percent,
+      format: (value) => percent(value, "mangler"),
+      ariaLabel: "Reallønnsvekst per lønnsår etter inflasjon",
+      lineClass: "real-line",
+      dotClass: "real-dot",
+      areaClass: "real-area",
+    },
+    inflation: {
+      label: "Inflasjon",
+      value: (year) => year.inflation_percent,
+      format: (value) => percent(value, "mangler"),
+      ariaLabel: "Inflasjon per lønnsår basert på SSB KPI",
+      lineClass: "inflation-line",
+      dotClass: "inflation-dot",
+      areaClass: "inflation-area",
+    },
+    money: {
+      label: "Kroner",
+      value: (year) => year.change_nok,
+      format: compactKroner,
+      ariaLabel: "Lønnsøkning i kroner per lønnsår",
+      lineClass: "percent-line",
+      dotClass: "percent-dot",
+      areaClass: "percent-area",
+    },
+  };
+  const config = metricConfig[mode];
+  const data = yearly.filter((year) => {
+    const value = config.value(year);
+    return value !== null && value !== undefined;
+  });
   if (!data.length) return <EmptyChart />;
 
   const width = 900;
   const height = 260;
   const padding = 42;
-  const values = data.map((year) => (mode === "percent" ? year.change_percent : year.change_nok));
+  const values = data.map((year) => config.value(year));
   const minValue = Math.min(0, ...values);
   const maxValue = Math.max(0, ...values);
   const range = maxValue - minValue || 1;
   const yFor = (value) => height - padding - ((value - minValue) / range) * (height - padding * 2);
   const points = data.map((year, index) => {
     const x = padding + (index / Math.max(data.length - 1, 1)) * (width - padding * 2);
-    const value = mode === "percent" ? year.change_percent : year.change_nok;
+    const value = config.value(year);
     return { ...year, value, x, y: yFor(value) };
   });
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
@@ -594,31 +652,41 @@ function PercentTrendChart({ yearly }) {
   const medianValue = median(values);
   const averageY = yFor(average);
   const medianY = yFor(medianValue);
-  const formatValue = mode === "percent" ? percent : compactKroner;
-  const ariaLabel = mode === "percent" ? "Prosentvis lønnsutvikling per lønnsår" : "Lønnsøkning i kroner per lønnsår";
+  const formatValue = config.format;
 
   return (
     <div className="svg-wrap percent-card">
       <div className="chart-toggle" aria-label="Velg visning">
         <button className={mode === "percent" ? "active" : ""} type="button" onClick={() => setMode("percent")}>
-          Prosent
+          Lønnsvekst
+        </button>
+        <button className={mode === "real" ? "active" : ""} type="button" onClick={() => setMode("real")}>
+          Reallønn
+        </button>
+        <button className={mode === "inflation" ? "active" : ""} type="button" onClick={() => setMode("inflation")}>
+          Inflasjon
         </button>
         <button className={mode === "money" ? "active" : ""} type="button" onClick={() => setMode("money")}>
           Kroner
         </button>
       </div>
       <div className="chart-summary">
+        <span>Viser</span>
+        <strong>{config.label}</strong>
         <span>Snitt</span>
         <strong>{formatValue(average)}</strong>
         <span>Median</span>
         <strong>{formatValue(medianValue)}</strong>
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel}>
+      <p className="chart-note">
+        Inflasjon følger valgt lønnsår og bruker SSB KPI totalindeks fra startmåned til samme måned året etter.
+      </p>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={config.ariaLabel}>
         <line className="reference-line" x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} />
         <line className="average-line" x1={padding} x2={width - padding} y1={averageY} y2={averageY} />
         <line className="median-line" x1={padding} x2={width - padding} y1={medianY} y2={medianY} />
         <path
-          className="percent-area"
+          className={config.areaClass}
           d={`${path} L ${points.at(-1).x} ${height - padding} L ${points[0].x} ${height - padding} Z`}
         />
         <FlagMarkers flags={chartFlags(yearly)} xByYear={flagXByYear} top={padding / 2} bottom={height - padding} />
@@ -628,15 +696,18 @@ function PercentTrendChart({ yearly }) {
         <text x={width - padding} y={medianY + 18} textAnchor="end" className="reference-label median-label">
           Median {formatValue(medianValue)}
         </text>
-        <path className="percent-line" d={path} />
+        <path className={config.lineClass} d={path} />
         {points.map((point) => (
-          <g key={point.salary_year}>
+          <g key={`${mode}-${point.salary_year}`}>
             <title>{`Lønnsår ${point.salary_year}
 Økning: ${compactKroner(point.change_nok)}
-Prosent: ${percent(point.change_percent)}
+Lønnsvekst: ${percent(point.change_percent)}
+Inflasjon: ${percent(point.inflation_percent, "mangler")}
+Reallønnsvekst: ${percent(point.real_change_percent, "mangler")}
+Inflasjonsperiode: ${point.inflation_period || "mangler"}
 Sluttlønn: ${kroner(point.final_amount_nok)}
 Antall lønnstrinn: ${point.steps.length}`}</title>
-            <circle className="percent-dot" cx={point.x} cy={point.y} r="6" />
+            <circle className={config.dotClass} cx={point.x} cy={point.y} r="6" />
             <text x={point.x} y={point.y - 14} textAnchor="middle">
               {formatValue(point.value)}
             </text>
