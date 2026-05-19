@@ -4,7 +4,7 @@ import { dataService, isDemoMode } from "./dataService.js";
 import { buildAdjustmentCalculation } from "./salaryCore.js";
 import "./styles.css";
 
-const APP_NAME = "Cash Money";
+const APP_NAME = "Kæsj-månni";
 
 const MONTHS_NN = [
   "Januar", "Februar", "Mars", "April", "Mai", "Juni",

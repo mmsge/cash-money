@@ -1,4 +1,4 @@
-# Cash Money
+# Kæsj-månni
 
 Lokal webapp som fortel historia om lønsutviklinga di — sju seksjonar i ein roleg, redaksjonell rulleflyt med diagram, kjøpekraftsgap og prognose.
 
@@ -8,7 +8,7 @@ Kjør siste publiserte image med Podman:
 
 ```bash
 mkdir -p data
-podman run --rm -p 8080:8080 -v ./data:/data ghcr.io/mmsge/cash-money:latest
+podman run --rm -p 8080:8080 -v ./data:/data ghcr.io/mmsge/kaesj-maanni:latest
 ```
 
 Åpne `http://localhost:8080`.
@@ -19,7 +19,7 @@ Docker fungerer også med samme image:
 
 ```bash
 mkdir -p data
-docker run --rm -p 8080:8080 -v ./data:/data ghcr.io/mmsge/cash-money:latest
+docker run --rm -p 8080:8080 -v ./data:/data ghcr.io/mmsge/kaesj-maanni:latest
 ```
 
 Hvis pakken i GitHub Container Registry er privat, må du først logge inn med `podman login ghcr.io` eller `docker login ghcr.io`. Offentlige pakker kan hentes uten innlogging.
@@ -126,5 +126,5 @@ npm run preview
 GitHub Actions publiserer automatisk multi-arkitektur-image ved push til `hovud` eller ved tagger på formatet `v*`. For å bygge og pushe samme type image manuelt fra en maskin med Docker Buildx:
 
 ```bash
-docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/mmsge/cash-money:latest --push .
+docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/mmsge/kaesj-maanni:latest --push .
 ```
