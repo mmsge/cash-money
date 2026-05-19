@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildDashboard, buildSummary, inflationForSalaryYear, parseSalaryText } from "../src/salaryCore.js";
+import { buildAdjustmentCalculation, buildDashboard, buildSummary, inflationForSalaryYear, parseSalaryText } from "../src/salaryCore.js";
 import { dataService, isDemoMode } from "../src/dataService.js";
 import { CPI_INDEX_BY_MONTH, INFLATION_DATA_META } from "../src/inflationData.js";
 import { sampleText } from "../src/sampleData.js";
@@ -96,6 +96,60 @@ test("buildDashboard computes purchasing power gap and below-inflation years fro
   assert.equal(dashboard.cumulative_real_growth_percent, -1.49);
   assert.equal(dashboard.below_inflation_years_count, 1);
   assert.equal(dashboard.purchasing_power_adjustment_nok, 7875);
+});
+
+test("buildAdjustmentCalculation supports target annual salary input", () => {
+  const adjustment = buildAdjustmentCalculation({
+    currentSalaryNok: 520000,
+    latestInflationPercent: 2.9,
+    purchasingPowerAdjustmentNok: 15000,
+    mode: "target_salary",
+    value: 560000,
+  });
+
+  assert.equal(adjustment.requested_new_salary_nok, 560000);
+  assert.equal(adjustment.raise_nok, 40000);
+  assert.equal(adjustment.raise_percent, 7.69);
+  assert.equal(adjustment.real_raise_percent, 4.79);
+  assert.equal(adjustment.real_raise_nok, 24908);
+  assert.equal(adjustment.restores_cumulative_purchasing_power, true);
+  assert.equal(adjustment.restore_threshold_salary_nok, 535000);
+  assert.match(adjustment.explanation, /7.69 %/);
+  assert.match(adjustment.explanation, /4.79 % reallønnsvekst/);
+});
+
+test("buildAdjustmentCalculation supports NOK raise input and identifies shortfall", () => {
+  const adjustment = buildAdjustmentCalculation({
+    currentSalaryNok: 520000,
+    latestInflationPercent: 2.9,
+    purchasingPowerAdjustmentNok: 30000,
+    mode: "raise_nok",
+    value: 20000,
+  });
+
+  assert.equal(adjustment.requested_new_salary_nok, 540000);
+  assert.equal(adjustment.raise_nok, 20000);
+  assert.equal(adjustment.raise_percent, 3.85);
+  assert.equal(adjustment.real_raise_percent, 0.95);
+  assert.equal(adjustment.restores_cumulative_purchasing_power, false);
+  assert.equal(adjustment.shortfall_to_restore_nok, 10000);
+  assert.match(adjustment.explanation, /mangler fortsatt 10000 kroner/i);
+});
+
+test("buildAdjustmentCalculation supports percent raise input", () => {
+  const adjustment = buildAdjustmentCalculation({
+    currentSalaryNok: 520000,
+    latestInflationPercent: 2.9,
+    purchasingPowerAdjustmentNok: 0,
+    mode: "raise_percent",
+    value: 5,
+  });
+
+  assert.equal(adjustment.requested_new_salary_nok, 546000);
+  assert.equal(adjustment.raise_nok, 26000);
+  assert.equal(adjustment.raise_percent, 5);
+  assert.equal(adjustment.real_raise_percent, 2.1);
+  assert.equal(adjustment.restores_cumulative_purchasing_power, true);
 });
 
 test("inflationForSalaryYear returns null when the end month is missing", () => {
