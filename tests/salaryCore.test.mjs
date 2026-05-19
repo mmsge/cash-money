@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildSummary, inflationForSalaryYear, parseSalaryText } from "../src/salaryCore.js";
+import { buildDashboard, buildSummary, inflationForSalaryYear, parseSalaryText } from "../src/salaryCore.js";
 import { dataService, isDemoMode } from "../src/dataService.js";
 import { CPI_INDEX_BY_MONTH, INFLATION_DATA_META } from "../src/inflationData.js";
 import { sampleText } from "../src/sampleData.js";
@@ -58,6 +58,11 @@ test("buildSummary matches the backend grouping and forecast defaults", () => {
   assert.equal(yearly[2025].inflation_preliminary, true);
   assert.equal(yearly[2025].inflation_period, "2025-05 til 2026-04 (foreløpig, mål 2026-05)");
   assert.equal(yearly[2025].real_change_percent, 2.42);
+  assert.equal(summary.dashboard.current_salary_nok, 520000);
+  assert.equal(summary.dashboard.total_nominal_growth_percent, 30);
+  assert.equal(summary.dashboard.cumulative_real_growth_percent, 5.46);
+  assert.equal(summary.dashboard.below_inflation_years_count, 0);
+  assert.equal(summary.dashboard.purchasing_power_adjustment_nok, 0);
   assert.equal(summary.predictions.average_change_percent, 5.39);
   assert.equal(summary.predictions.based_on_years, 5);
   assert.equal(summary.predictions.items[0].salary_year, 2027);
@@ -75,6 +80,22 @@ test("buildSummary recalculates when the salary year starts in January", () => {
   assert.equal(yearly[2022].inflation_period, "2022-01 til 2023-01");
   assert.equal(yearly[2022].inflation_percent, 7.02);
   assert.equal(yearly[2022].real_change_percent, 0.48);
+  assert.equal(summary.dashboard.cumulative_real_growth_percent, 4.71);
+  assert.equal(summary.dashboard.below_inflation_years_count, 1);
+});
+
+test("buildDashboard computes purchasing power gap and below-inflation years from yearly summary data", () => {
+  const dashboard = buildDashboard([
+    { salary_year: 2021, final_amount_nok: 500000, change_percent: null, inflation_percent: 2.5 },
+    { salary_year: 2022, final_amount_nok: 510000, change_percent: 2, inflation_percent: 3 },
+    { salary_year: 2023, final_amount_nok: 520000, change_percent: 1.96, inflation_percent: null },
+  ]);
+
+  assert.equal(dashboard.current_salary_nok, 520000);
+  assert.equal(dashboard.total_nominal_growth_percent, 4);
+  assert.equal(dashboard.cumulative_real_growth_percent, -1.49);
+  assert.equal(dashboard.below_inflation_years_count, 1);
+  assert.equal(dashboard.purchasing_power_adjustment_nok, 7875);
 });
 
 test("inflationForSalaryYear returns null when the end month is missing", () => {

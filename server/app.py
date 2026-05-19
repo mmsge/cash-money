@@ -281,6 +281,60 @@ def build_predictions(yearly: list[dict[str, Any]], years_ahead: int = 3) -> dic
     }
 
 
+def compound_percent_changes(values: list[float]) -> float | None:
+    if not values:
+        return None
+    factor = 1.0
+    for value in values:
+        factor *= 1 + (value / 100)
+    return factor
+
+
+def build_dashboard(yearly: list[dict[str, Any]]) -> dict[str, Any]:
+    if not yearly:
+        return {
+            "current_salary_nok": None,
+            "total_nominal_growth_percent": None,
+            "cumulative_real_growth_percent": None,
+            "below_inflation_years_count": 0,
+            "purchasing_power_adjustment_nok": None,
+        }
+
+    first_amount = int(yearly[0]["final_amount_nok"])
+    latest_amount = int(yearly[-1]["final_amount_nok"])
+    inflation_percents = [
+        float(year["inflation_percent"])
+        for year in yearly
+        if year.get("inflation_percent") is not None
+    ]
+    cumulative_inflation_factor = compound_percent_changes(inflation_percents)
+    inflation_adjusted_baseline = (
+        None if cumulative_inflation_factor is None else round(first_amount * cumulative_inflation_factor)
+    )
+
+    return {
+        "current_salary_nok": latest_amount,
+        "total_nominal_growth_percent": round(((latest_amount - first_amount) / first_amount) * 100, 2),
+        "cumulative_real_growth_percent": (
+            None
+            if cumulative_inflation_factor is None
+            else round(((latest_amount / (first_amount * cumulative_inflation_factor)) - 1) * 100, 2)
+        ),
+        "below_inflation_years_count": len(
+            [
+                year
+                for year in yearly
+                if year.get("change_percent") is not None
+                and year.get("inflation_percent") is not None
+                and float(year["change_percent"]) < float(year["inflation_percent"])
+            ]
+        ),
+        "purchasing_power_adjustment_nok": (
+            None if inflation_adjusted_baseline is None else max(0, inflation_adjusted_baseline - latest_amount)
+        ),
+    }
+
+
 def build_summary(db: sqlite3.Connection) -> dict[str, Any]:
     start_month = get_salary_year_start_month(db)
     entries = [
@@ -352,6 +406,7 @@ def build_summary(db: sqlite3.Connection) -> dict[str, Any]:
         "salary_year_start_month": start_month,
         "steps": steps,
         "yearly": yearly,
+        "dashboard": build_dashboard(yearly),
         "predictions": build_predictions(yearly),
         "flags": [flag for flags in flags_by_year.values() for flag in flags],
     }

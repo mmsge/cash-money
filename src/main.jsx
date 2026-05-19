@@ -71,6 +71,12 @@ function compactKroner(value) {
   return `${sign}${formatted} kr`;
 }
 
+function integer(value, noun = "") {
+  if (value === null || value === undefined) return "Ingen data";
+  const formatted = new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 0 }).format(value);
+  return noun ? `${formatted} ${noun}` : formatted;
+}
+
 function median(values) {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -183,13 +189,7 @@ function App() {
     await run(async () => dataService.updateStartMonth(value), "Lønnsår oppdatert.");
   }
 
-  const currentSalary = summary?.yearly?.at(-1)?.final_amount_nok;
-  const totalGrowth =
-    summary?.yearly?.length > 1
-      ? ((summary.yearly.at(-1).final_amount_nok - summary.yearly[0].final_amount_nok) /
-          summary.yearly[0].final_amount_nok) *
-        100
-      : null;
+  const dashboard = summary?.dashboard;
 
   return (
     <main>
@@ -204,8 +204,8 @@ function App() {
         </div>
         <div className="hero-card">
           <span>Nåværende årslønn</span>
-          <strong>{kroner(currentSalary)}</strong>
-          <small>Total utvikling: {percent(totalGrowth)}</small>
+          <strong>{kroner(dashboard?.current_salary_nok)}</strong>
+          <small>Total utvikling: {percent(dashboard?.total_nominal_growth_percent)}</small>
         </div>
       </section>
 
@@ -371,6 +371,40 @@ function App() {
         </Panel>
       </section>
 
+      <Panel
+        title="Forhandlingsoversikt"
+        subtitle="Basert på første og siste lønnsår, samt akkumulert inflasjon i historikken."
+      >
+        <section className="summary-dashboard">
+          <MetricCard
+            label="Nåværende årslønn"
+            value={kroner(dashboard?.current_salary_nok)}
+            detail="Siste registrerte sluttlønn"
+          />
+          <MetricCard
+            label="Total nominell vekst"
+            value={percent(dashboard?.total_nominal_growth_percent, "ingen historikk")}
+            detail="Fra første til siste lønnsår"
+          />
+          <MetricCard
+            label="Akkumulert reallønnsvekst"
+            value={percent(dashboard?.cumulative_real_growth_percent, "mangler inflasjon")}
+            detail="Lønnsvekst justert for akkumulert inflasjon"
+          />
+          <MetricCard
+            label="År under inflasjon"
+            value={integer(dashboard?.below_inflation_years_count, "år")}
+            detail="Lønnsår der veksten ikke holdt tritt med KPI"
+          />
+          <MetricCard
+            label="Behov for NOK-justering"
+            value={kroner(dashboard?.purchasing_power_adjustment_nok)}
+            detail="Ekstra årslønn som trengs for å hente inn tapt kjøpekraft"
+            accent={dashboard?.purchasing_power_adjustment_nok > 0 ? "warning" : "success"}
+          />
+        </section>
+      </Panel>
+
       <section className="chart-grid">
         <Panel title="Årslønn per lønnsår" subtitle="Siste lønnstrinn i hvert lønnsår.">
           <SalaryBarChart yearly={summary?.yearly || []} />
@@ -473,6 +507,16 @@ function Metric({ label, value, title }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </p>
+  );
+}
+
+function MetricCard({ label, value, detail, accent = "default" }) {
+  return (
+    <article className={`metric-card metric-card-${accent}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </article>
   );
 }
 
