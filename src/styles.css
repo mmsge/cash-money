@@ -164,6 +164,33 @@ h2 {
   gap: 18px;
 }
 
+.negotiation-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.negotiation-card {
+  border: 1px solid rgba(120, 105, 78, 0.2);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 250, 240, 0.76);
+  box-shadow: 0 10px 24px rgba(50, 42, 25, 0.08);
+}
+
+.negotiation-card span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.negotiation-card strong {
+  font-size: 1.25rem;
+}
+
 .grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 18px;
@@ -620,7 +647,8 @@ th {
   .grid,
   .top-grid,
   .chart-grid,
-  .year-grid {
+  .year-grid,
+  .negotiation-grid {
     grid-template-columns: 1fr;
   }
 

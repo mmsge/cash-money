@@ -20,6 +20,14 @@ STATIC_DIR = Path(os.environ.get("STATIC_DIR", Path(__file__).resolve().parent.p
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8080"))
 DEFAULT_SALARY_YEAR_START_MONTH = 5
+ANNUAL_INFLATION_PERCENT_BY_YEAR = {
+    2021: 3.5,
+    2022: 5.8,
+    2023: 5.5,
+    2024: 3.1,
+    2025: 2.8,
+    2026: 2.7,
+}
 
 
 @dataclass(frozen=True)
@@ -244,6 +252,50 @@ def build_predictions(yearly: list[dict[str, Any]], years_ahead: int = 3) -> dic
     }
 
 
+def inflation_percent_for_year(salary_year: int) -> float | None:
+    return ANNUAL_INFLATION_PERCENT_BY_YEAR.get(salary_year)
+
+
+def build_negotiation_summary(yearly: list[dict[str, Any]]) -> dict[str, Any]:
+    if not yearly:
+        return {
+            "current_salary_nok": None,
+            "total_nominal_growth_percent": None,
+            "cumulative_inflation_adjusted_growth_percent": None,
+            "years_growth_below_inflation": 0,
+            "purchasing_power_adjustment_needed_nok": None,
+        }
+
+    first = yearly[0]
+    latest = yearly[-1]
+    first_amount = int(first["final_amount_nok"])
+    latest_amount = int(latest["final_amount_nok"])
+    total_nominal_growth = round(((latest_amount - first_amount) / first_amount) * 100, 2) if first_amount > 0 else None
+    inflation_series = [inflation_percent_for_year(int(year["salary_year"])) for year in yearly[1:]]
+    inflation_series = [value for value in inflation_series if value is not None]
+    inflation_factor = 1.0
+    for value in inflation_series:
+        inflation_factor *= 1 + (value / 100)
+    inflation_adjusted_growth = round((((1 + total_nominal_growth / 100) / inflation_factor) - 1) * 100, 2) if total_nominal_growth is not None else None
+    years_below_inflation = 0
+    for year in yearly[1:]:
+        inflation_percent = inflation_percent_for_year(int(year["salary_year"]))
+        if inflation_percent is None:
+            continue
+        change_percent = year.get("change_percent")
+        if change_percent is not None and float(change_percent) < inflation_percent:
+            years_below_inflation += 1
+    inflation_adjusted_baseline = round(first_amount * inflation_factor)
+    purchasing_power_adjustment = max(inflation_adjusted_baseline - latest_amount, 0)
+    return {
+        "current_salary_nok": latest_amount,
+        "total_nominal_growth_percent": total_nominal_growth,
+        "cumulative_inflation_adjusted_growth_percent": inflation_adjusted_growth,
+        "years_growth_below_inflation": years_below_inflation,
+        "purchasing_power_adjustment_needed_nok": purchasing_power_adjustment,
+    }
+
+
 def build_summary(db: sqlite3.Connection) -> dict[str, Any]:
     start_month = get_salary_year_start_month(db)
     entries = [
@@ -315,6 +367,7 @@ def build_summary(db: sqlite3.Connection) -> dict[str, Any]:
         "salary_year_start_month": start_month,
         "steps": steps,
         "yearly": yearly,
+        "negotiation": build_negotiation_summary(yearly),
         "predictions": build_predictions(yearly),
         "flags": [flag for flags in flags_by_year.values() for flag in flags],
     }

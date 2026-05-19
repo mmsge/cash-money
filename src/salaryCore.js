@@ -1,6 +1,14 @@
 import { CPI_INDEX_BY_MONTH, INFLATION_DATA_META, INFLATION_SOURCE } from "./inflationData.js";
 
 export const DEFAULT_SALARY_YEAR_START_MONTH = 5;
+export const ANNUAL_INFLATION_PERCENT_BY_YEAR = {
+  2021: 3.5,
+  2022: 5.8,
+  2023: 5.5,
+  2024: 3.1,
+  2025: 2.8,
+  2026: 2.7,
+};
 
 function parseIsoDate(value) {
   const parsed = new Date(`${value}T00:00:00Z`);
@@ -134,6 +142,57 @@ export function buildPredictions(yearly, yearsAhead = 3) {
   };
 }
 
+function inflationPercentForYear(salaryYear) {
+  return ANNUAL_INFLATION_PERCENT_BY_YEAR[salaryYear] ?? null;
+}
+
+export function buildNegotiationSummaryFromYearly(yearly) {
+  if (!yearly.length) {
+    return {
+      current_salary_nok: null,
+      total_nominal_growth_percent: null,
+      cumulative_inflation_adjusted_growth_percent: null,
+      years_growth_below_inflation: 0,
+      purchasing_power_adjustment_needed_nok: null,
+    };
+  }
+
+  const first = yearly[0];
+  const latest = yearly.at(-1);
+  const firstAmount = Number(first.final_amount_nok);
+  const latestAmount = Number(latest.final_amount_nok);
+  const totalNominalGrowth =
+    Number.isFinite(firstAmount) && firstAmount > 0 && Number.isFinite(latestAmount)
+      ? Math.round(((latestAmount - firstAmount) / firstAmount) * 10000) / 100
+      : null;
+  const inflationSeries = yearly
+    .slice(1)
+    .map((year) => inflationPercentForYear(year.salary_year))
+    .filter((value) => value !== null);
+  const inflationFactor = inflationSeries.reduce((factor, percentValue) => factor * (1 + percentValue / 100), 1);
+  const inflationAdjustedGrowth =
+    totalNominalGrowth === null ? null : Math.round((((1 + totalNominalGrowth / 100) / inflationFactor - 1) * 100) * 100) / 100;
+  const yearsBelowInflation = yearly
+    .slice(1)
+    .filter((year) => {
+      const inflationPercent = inflationPercentForYear(year.salary_year);
+      return inflationPercent !== null && year.change_percent !== null && year.change_percent < inflationPercent;
+    }).length;
+  const inflationAdjustedBaseline = Number.isFinite(firstAmount) ? Math.round(firstAmount * inflationFactor) : null;
+  const purchasingPowerAdjustment =
+    inflationAdjustedBaseline === null || !Number.isFinite(latestAmount)
+      ? null
+      : Math.max(inflationAdjustedBaseline - latestAmount, 0);
+
+  return {
+    current_salary_nok: Number.isFinite(latestAmount) ? latestAmount : null,
+    total_nominal_growth_percent: totalNominalGrowth,
+    cumulative_inflation_adjusted_growth_percent: inflationAdjustedGrowth,
+    years_growth_below_inflation: yearsBelowInflation,
+    purchasing_power_adjustment_needed_nok: purchasingPowerAdjustment,
+  };
+}
+
 export function buildSummary(entries, flags, startMonth = DEFAULT_SALARY_YEAR_START_MONTH) {
   const normalizedStartMonth = Number.isInteger(startMonth) && startMonth >= 1 && startMonth <= 12 ? startMonth : DEFAULT_SALARY_YEAR_START_MONTH;
   const sortedEntries = [...entries].sort((a, b) => a.valid_from.localeCompare(b.valid_from) || a.id - b.id);
@@ -198,6 +257,7 @@ export function buildSummary(entries, flags, startMonth = DEFAULT_SALARY_YEAR_ST
     salary_year_start_month: normalizedStartMonth,
     steps,
     yearly,
+    negotiation: buildNegotiationSummaryFromYearly(yearly),
     predictions: buildPredictions(yearly),
     flags: sortedFlags,
   };

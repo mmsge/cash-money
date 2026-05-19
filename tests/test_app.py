@@ -105,6 +105,26 @@ class SalaryAppTests(unittest.TestCase):
         self.assertEqual(yearly[2022]["inflation_percent"], 7.02)
         self.assertEqual(yearly[2022]["real_change_percent"], 0.48)
 
+    def test_summary_exposes_negotiation_metrics(self):
+        entries = app.parse_salary_text(SAMPLE_TEXT)
+        with app.connect() as db:
+            timestamp = app.now_iso()
+            for entry in entries:
+                db.execute(
+                    """
+                    INSERT INTO salary_entries(valid_from, valid_to, amount_nok, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (entry["valid_from"], entry["valid_to"], entry["amount_nok"], timestamp, timestamp),
+                )
+            summary = app.build_summary(db)
+
+        self.assertEqual(summary["negotiation"]["current_salary_nok"], 520000)
+        self.assertEqual(summary["negotiation"]["total_nominal_growth_percent"], 30.0)
+        self.assertEqual(summary["negotiation"]["cumulative_inflation_adjusted_growth_percent"], 7.0)
+        self.assertEqual(summary["negotiation"]["years_growth_below_inflation"], 1)
+        self.assertEqual(summary["negotiation"]["purchasing_power_adjustment_needed_nok"], 0)
+
     def test_inflation_for_salary_year_returns_none_when_end_month_is_missing(self):
         inflation = app.inflation_for_salary_year(2026, 5)
 

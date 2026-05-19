@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildSummary, inflationForSalaryYear, parseSalaryText } from "../src/salaryCore.js";
+import { buildNegotiationSummaryFromYearly, buildSummary, inflationForSalaryYear, parseSalaryText } from "../src/salaryCore.js";
 import { dataService, isDemoMode } from "../src/dataService.js";
 import { CPI_INDEX_BY_MONTH, INFLATION_DATA_META } from "../src/inflationData.js";
 import { sampleText } from "../src/sampleData.js";
@@ -53,6 +53,34 @@ test("buildSummary recalculates when the salary year starts in January", () => {
   assert.equal(yearly[2022].inflation_period, "2022-01 til 2023-01");
   assert.equal(yearly[2022].inflation_percent, 7.02);
   assert.equal(yearly[2022].real_change_percent, 0.48);
+});
+
+test("buildSummary exposes negotiation metrics", () => {
+  const entries = parseSalaryText(sampleText).map((entry, index) => ({ id: index + 1, ...entry }));
+  const summary = buildSummary(entries, [], 5);
+
+  assert.deepEqual(summary.negotiation, {
+    current_salary_nok: 520000,
+    total_nominal_growth_percent: 30,
+    cumulative_inflation_adjusted_growth_percent: 7,
+    years_growth_below_inflation: 1,
+    purchasing_power_adjustment_needed_nok: 0,
+  });
+});
+
+test("negotiation metrics count years below inflation and purchasing power adjustment", () => {
+  const yearly = [
+    { salary_year: 2021, final_amount_nok: 500000, change_percent: null },
+    { salary_year: 2022, final_amount_nok: 510000, change_percent: 2.0 },
+    { salary_year: 2023, final_amount_nok: 520000, change_percent: 1.96 },
+  ];
+  const negotiation = buildNegotiationSummaryFromYearly(yearly);
+
+  assert.equal(negotiation.current_salary_nok, 520000);
+  assert.equal(negotiation.total_nominal_growth_percent, 4);
+  assert.equal(negotiation.cumulative_inflation_adjusted_growth_percent, -6.83);
+  assert.equal(negotiation.years_growth_below_inflation, 2);
+  assert.equal(negotiation.purchasing_power_adjustment_needed_nok, 38095);
 });
 
 test("inflationForSalaryYear returns null when the end month is missing", () => {

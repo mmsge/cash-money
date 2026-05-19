@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import { dataService, isDemoMode } from "./dataService.js";
+import { buildNegotiationSummaryFromYearly } from "./salaryCore.js";
 import "./styles.css";
 
 const MONTHS = [
@@ -177,13 +178,7 @@ function App() {
     await run(async () => dataService.updateStartMonth(value), "Lønnsår oppdatert.");
   }
 
-  const currentSalary = summary?.yearly?.at(-1)?.final_amount_nok;
-  const totalGrowth =
-    summary?.yearly?.length > 1
-      ? ((summary.yearly.at(-1).final_amount_nok - summary.yearly[0].final_amount_nok) /
-          summary.yearly[0].final_amount_nok) *
-        100
-      : null;
+  const negotiation = summary?.negotiation || buildNegotiationSummaryFromYearly(summary?.yearly || []);
 
   return (
     <main>
@@ -198,8 +193,8 @@ function App() {
         </div>
         <div className="hero-card">
           <span>Nåværende årslønn</span>
-          <strong>{kroner(currentSalary)}</strong>
-          <small>Total utvikling: {percent(totalGrowth)}</small>
+          <strong>{kroner(negotiation.current_salary_nok)}</strong>
+          <small>Total utvikling: {percent(negotiation.total_nominal_growth_percent)}</small>
         </div>
       </section>
 
@@ -360,6 +355,29 @@ function App() {
             </div>
           </form>
         </Panel>
+      </section>
+
+      <section className="negotiation-grid">
+        <article className="negotiation-card">
+          <span>Dagens lønn</span>
+          <strong>{kroner(negotiation.current_salary_nok)}</strong>
+        </article>
+        <article className="negotiation-card">
+          <span>Total nominell vekst</span>
+          <strong>{percent(negotiation.total_nominal_growth_percent)}</strong>
+        </article>
+        <article className="negotiation-card">
+          <span>Kumulativ realvekst</span>
+          <strong>{percent(negotiation.cumulative_inflation_adjusted_growth_percent)}</strong>
+        </article>
+        <article className="negotiation-card">
+          <span>År under inflasjon</span>
+          <strong>{negotiation.years_growth_below_inflation}</strong>
+        </article>
+        <article className="negotiation-card">
+          <span>Behov for kjøpekraftjustering</span>
+          <strong>{kroner(negotiation.purchasing_power_adjustment_needed_nok)}</strong>
+        </article>
       </section>
 
       <section className="chart-grid">
