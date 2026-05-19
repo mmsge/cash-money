@@ -73,6 +73,14 @@ function median(values) {
   return (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+function inflationLabel(year, label = "Inflasjon") {
+  return year?.inflation_preliminary ? `${label} (foreløpig)` : label;
+}
+
+function realWageLabel(year, label = "Reallønnsvekst") {
+  return year?.inflation_preliminary && year?.real_change_percent !== null && year?.real_change_percent !== undefined ? `${label} (foreløpig)` : label;
+}
+
 function App() {
   const [summary, setSummary] = useState(null);
   const [entries, setEntries] = useState([]);
@@ -387,8 +395,8 @@ function App() {
             </div>
             <div className="year-metrics">
               <Metric label="Lønnsvekst" value={percent(year.change_percent)} />
-              <Metric label="Inflasjon" value={percent(year.inflation_percent, "mangler")} title={year.inflation_period} />
-              <Metric label="Reallønnsvekst" value={percent(year.real_change_percent, "mangler")} />
+              <Metric label={inflationLabel(year)} value={percent(year.inflation_percent, "mangler")} title={year.inflation_period} />
+              <Metric label={realWageLabel(year)} value={percent(year.real_change_percent, "mangler")} />
             </div>
             <div className="chips">
               {year.flags.map((flag) => (
@@ -717,6 +725,7 @@ function PercentTrendChart({ yearly }) {
       average: values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null,
     };
   });
+  const hasPreliminaryPercent = viewMode === "percent" && activePercentMetrics.some((metric) => metric.key === "inflation" || metric.key === "real") && chartData.some((year) => year.inflation_preliminary);
 
   return (
     <div className="chart-card" aria-label={viewMode === "money" ? "Lønnsøkning i kroner per lønnsår" : "Prosentutvikling per lønnsår"}>
@@ -767,6 +776,7 @@ function PercentTrendChart({ yearly }) {
       ) : null}
       <p className="chart-note">
         Inflasjon følger valgt lønnsår og bruker SSB KPI totalindeks fra startmåned til samme måned året etter.
+        {hasPreliminaryPercent ? " Foreløpige punkter bruker siste publiserte SSB-måned." : ""}
       </p>
       <ChartFrame className="wide">
         <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={260} initialDimension={{ width: 240, height: 260 }}>
@@ -780,7 +790,7 @@ function PercentTrendChart({ yearly }) {
                   rows={(item) => [
                     ...(viewMode === "percent"
                       ? activePercentMetrics.map((metric) => ({
-                          label: metric.label,
+                          label: metric.key === "inflation" ? inflationLabel(item, metric.label) : metric.key === "real" ? realWageLabel(item, metric.label) : metric.label,
                           value: metric.format(item[metric.dataKey], "mangler"),
                         }))
                       : [{ label: moneyMetric.label, value: moneyMetric.format(item.metric_value) }]),
@@ -788,8 +798,8 @@ function PercentTrendChart({ yearly }) {
                     ...(viewMode === "money"
                       ? [
                           { label: "Lønnsvekst", value: percent(item.change_percent) },
-                          { label: "Inflasjon", value: percent(item.inflation_percent, "mangler") },
-                          { label: "Reallønnsvekst", value: percent(item.real_change_percent, "mangler") },
+                          { label: inflationLabel(item), value: percent(item.inflation_percent, "mangler") },
+                          { label: realWageLabel(item), value: percent(item.real_change_percent, "mangler") },
                         ]
                       : []),
                     { label: "Inflasjonsperiode", value: item.inflation_period || "mangler" },

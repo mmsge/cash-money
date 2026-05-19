@@ -1,4 +1,4 @@
-import { CPI_INDEX_BY_MONTH, INFLATION_SOURCE } from "./inflationData.js";
+import { CPI_INDEX_BY_MONTH, INFLATION_DATA_META, INFLATION_SOURCE } from "./inflationData.js";
 
 export const DEFAULT_SALARY_YEAR_START_MONTH = 5;
 
@@ -83,12 +83,18 @@ export function inflationForSalaryYear(salaryYear, startMonth) {
   const endKey = monthKey(salaryYear + 1, startMonth);
   const startIndex = CPI_INDEX_BY_MONTH[startKey];
   const endIndex = CPI_INDEX_BY_MONTH[endKey];
+  const latestKey = INFLATION_DATA_META.latest_month;
+  const latestIndex = latestKey ? CPI_INDEX_BY_MONTH[latestKey] : undefined;
+  const hasPreliminaryEnd = startIndex !== undefined && endIndex === undefined && latestKey > startKey && latestKey < endKey && latestIndex !== undefined;
+  const comparisonEndKey = endIndex === undefined && hasPreliminaryEnd ? latestKey : endKey;
+  const comparisonEndIndex = endIndex === undefined && hasPreliminaryEnd ? latestIndex : endIndex;
 
   return {
-    inflation_period: `${startKey} til ${endKey}`,
+    inflation_period: hasPreliminaryEnd ? `${startKey} til ${comparisonEndKey} (foreløpig, mål ${endKey})` : `${startKey} til ${endKey}`,
     inflation_source: INFLATION_SOURCE,
+    inflation_preliminary: hasPreliminaryEnd,
     inflation_percent:
-      startIndex === undefined || endIndex === undefined ? null : roundPercent(((endIndex - startIndex) / startIndex) * 100),
+      startIndex === undefined || comparisonEndIndex === undefined ? null : roundPercent(((comparisonEndIndex - startIndex) / startIndex) * 100),
   };
 }
 
@@ -155,6 +161,7 @@ export function buildSummary(entries, flags, startMonth = DEFAULT_SALARY_YEAR_ST
         change_nok: null,
         change_percent: null,
         inflation_percent: null,
+        inflation_preliminary: false,
         real_change_percent: null,
         inflation_period: null,
         inflation_source: INFLATION_SOURCE,
@@ -173,6 +180,7 @@ export function buildSummary(entries, flags, startMonth = DEFAULT_SALARY_YEAR_ST
       const inflation = inflationForSalaryYear(salaryYear, normalizedStartMonth);
       bucket.flags = flagsByYear.get(salaryYear) || [];
       bucket.inflation_percent = inflation.inflation_percent;
+      bucket.inflation_preliminary = inflation.inflation_preliminary;
       bucket.inflation_period = inflation.inflation_period;
       bucket.inflation_source = inflation.inflation_source;
       if (previousAmount && bucket.final_amount_nok) {

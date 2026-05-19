@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from .inflation_data import CPI_INDEX_BY_MONTH, INFLATION_SOURCE
+from .inflation_data import CPI_INDEX_BY_MONTH, INFLATION_DATA_META, INFLATION_SOURCE
 
 
 DB_PATH = Path(os.environ.get("DB_PATH", "/data/salary.sqlite"))
@@ -181,13 +181,27 @@ def inflation_for_salary_year(salary_year: int, start_month: int) -> dict[str, A
     end_key = month_key(salary_year + 1, start_month)
     start_index = CPI_INDEX_BY_MONTH.get(start_key)
     end_index = CPI_INDEX_BY_MONTH.get(end_key)
+    latest_key = INFLATION_DATA_META.get("latest_month")
+    latest_index = CPI_INDEX_BY_MONTH.get(latest_key) if latest_key else None
+    has_preliminary_end = (
+        start_index is not None
+        and end_index is None
+        and latest_key is not None
+        and start_key < latest_key < end_key
+        and latest_index is not None
+    )
+    comparison_end_key = latest_key if end_index is None and has_preliminary_end else end_key
+    comparison_end_index = latest_index if end_index is None and has_preliminary_end else end_index
     inflation_percent = None
-    if start_index is not None and end_index is not None:
-        inflation_percent = round(((end_index - start_index) / start_index) * 100, 2)
+    if start_index is not None and comparison_end_index is not None:
+        inflation_percent = round(((comparison_end_index - start_index) / start_index) * 100, 2)
 
     return {
-        "inflation_period": f"{start_key} til {end_key}",
+        "inflation_period": (
+            f"{start_key} til {comparison_end_key} (foreløpig, mål {end_key})" if has_preliminary_end else f"{start_key} til {end_key}"
+        ),
         "inflation_source": INFLATION_SOURCE,
+        "inflation_preliminary": has_preliminary_end,
         "inflation_percent": inflation_percent,
     }
 
@@ -269,6 +283,7 @@ def build_summary(db: sqlite3.Connection) -> dict[str, Any]:
                 "change_nok": None,
                 "change_percent": None,
                 "inflation_percent": None,
+                "inflation_preliminary": False,
                 "real_change_percent": None,
                 "inflation_period": None,
                 "inflation_source": INFLATION_SOURCE,
@@ -285,6 +300,7 @@ def build_summary(db: sqlite3.Connection) -> dict[str, Any]:
         inflation = inflation_for_salary_year(salary_year, start_month)
         bucket["flags"] = flags_by_year.get(salary_year, [])
         bucket["inflation_percent"] = inflation["inflation_percent"]
+        bucket["inflation_preliminary"] = inflation["inflation_preliminary"]
         bucket["inflation_period"] = inflation["inflation_period"]
         bucket["inflation_source"] = inflation["inflation_source"]
         if previous_amount and final_amount:

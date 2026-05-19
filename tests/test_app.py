@@ -68,8 +68,10 @@ class SalaryAppTests(unittest.TestCase):
         self.assertEqual(yearly[2023]["real_change_percent"], 1.67)
         self.assertEqual(yearly[2023]["inflation_period"], "2023-05 til 2024-05")
         self.assertIn("SSB StatBank", yearly[2023]["inflation_source"])
-        self.assertEqual(yearly[2025]["inflation_percent"], None)
-        self.assertEqual(yearly[2025]["real_change_percent"], None)
+        self.assertEqual(yearly[2025]["inflation_percent"], 2.9)
+        self.assertEqual(yearly[2025]["inflation_preliminary"], True)
+        self.assertEqual(yearly[2025]["inflation_period"], "2025-05 til 2026-04 (foreløpig, mål 2026-05)")
+        self.assertEqual(yearly[2025]["real_change_percent"], 2.42)
         self.assertEqual(summary["predictions"]["average_change_percent"], 5.39)
         self.assertEqual(summary["predictions"]["based_on_years"], 5)
         self.assertEqual(summary["predictions"]["items"][0]["salary_year"], 2027)
@@ -108,6 +110,14 @@ class SalaryAppTests(unittest.TestCase):
 
         self.assertEqual(inflation["inflation_period"], "2026-05 til 2027-05")
         self.assertEqual(inflation["inflation_percent"], None)
+        self.assertEqual(inflation["inflation_preliminary"], False)
+
+    def test_inflation_for_salary_year_returns_preliminary_when_only_full_end_month_is_missing(self):
+        inflation = app.inflation_for_salary_year(2025, 5)
+
+        self.assertEqual(inflation["inflation_period"], "2025-05 til 2026-04 (foreløpig, mål 2026-05)")
+        self.assertEqual(inflation["inflation_percent"], 2.9)
+        self.assertEqual(inflation["inflation_preliminary"], True)
 
     def test_embedded_ssb_cpi_data_includes_historical_and_latest_generated_coverage(self):
         months = sorted(CPI_INDEX_BY_MONTH)
