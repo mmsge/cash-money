@@ -43,6 +43,28 @@ class SalaryAppTests(unittest.TestCase):
         self.assertEqual(entries[-1]["valid_to"], None)
         self.assertEqual(entries[-1]["amount_nok"], 520000)
 
+    def test_parse_salary_text_supports_day_first_formats(self):
+        entries = app.parse_salary_text(
+            """02.05.2025 01052026
+NOK 800000
+2024-05-01 30-04-2025
+760000
+09082021 30042022
+NOK 555000"""
+        )
+
+        self.assertEqual(len(entries), 3)
+        self.assertEqual(entries[0]["valid_from"], "2021-08-09")
+        self.assertEqual(entries[0]["valid_to"], "2022-04-30")
+        self.assertEqual(entries[1]["valid_from"], "2024-05-01")
+        self.assertEqual(entries[1]["valid_to"], "2025-04-30")
+        self.assertEqual(entries[2]["valid_from"], "2025-05-02")
+        self.assertEqual(entries[2]["valid_to"], "2026-05-01")
+
+    def test_parse_salary_text_rejects_invalid_day_first_dates(self):
+        with self.assertRaisesRegex(ValueError, "Ugyldig dato"):
+            app.parse_salary_text("32.01.2024\nNOK 500000")
+
     def test_summary_groups_by_may_salary_year(self):
         entries = app.parse_salary_text(SAMPLE_TEXT)
         with app.connect() as db:

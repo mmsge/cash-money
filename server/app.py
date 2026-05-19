@@ -90,6 +90,44 @@ def parse_iso_date(value: str) -> date:
         raise ValueError(f"Ugyldig dato: {value}") from exc
 
 
+def normalize_date_token(raw_value: str) -> str | None:
+    value = str(raw_value or "").strip()
+    if not value:
+        return None
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+        return value
+    day_first_separated = re.match(r"^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$", value)
+    if day_first_separated:
+        day = day_first_separated.group(1).zfill(2)
+        month = day_first_separated.group(2).zfill(2)
+        year = day_first_separated.group(3)
+        return f"{year}-{month}-{day}"
+    day_first_compact = re.match(r"^(\d{2})(\d{2})(\d{4})$", value)
+    if day_first_compact:
+        day = day_first_compact.group(1)
+        month = day_first_compact.group(2)
+        year = day_first_compact.group(3)
+        return f"{year}-{month}-{day}"
+    return None
+
+
+def parse_date_line(line: str) -> tuple[str, str | None] | None:
+    match = re.match(r"^(\S+)(?:\s+(\S+))?$", str(line or "").strip())
+    if not match:
+        return None
+    valid_from = normalize_date_token(match.group(1))
+    if not valid_from:
+        return None
+    raw_valid_to = match.group(2)
+    valid_to = normalize_date_token(raw_valid_to) if raw_valid_to else None
+    if raw_valid_to and not valid_to:
+        return None
+    parse_iso_date(valid_from)
+    if valid_to:
+        parse_iso_date(valid_to)
+    return valid_from, valid_to
+
+
 def validate_salary_entry(payload: dict[str, Any]) -> tuple[str, str | None, int]:
     valid_from = str(payload.get("valid_from", "")).strip()
     valid_to_value = payload.get("valid_to")
@@ -118,17 +156,16 @@ def parse_salary_text(text: str) -> list[dict[str, Any]]:
     lines = [line for line in lines if line]
     entries: list[dict[str, Any]] = []
 
-    date_pattern = re.compile(r"^(\d{4}-\d{2}-\d{2})(?:\s+(\d{4}-\d{2}-\d{2}))?$")
     amount_pattern = re.compile(r"^(?:NOK\s*)?([\d\s.,]+)$", re.IGNORECASE)
 
     index = 0
     while index < len(lines):
-        date_match = date_pattern.match(lines[index])
-        if not date_match:
+        date_entry = parse_date_line(lines[index])
+        if not date_entry:
             index += 1
             continue
 
-        valid_from, valid_to = date_match.group(1), date_match.group(2)
+        valid_from, valid_to = date_entry
         index += 1
         while index < len(lines):
             amount_match = amount_pattern.match(lines[index])
@@ -143,7 +180,7 @@ def parse_salary_text(text: str) -> list[dict[str, Any]]:
                 )
                 index += 1
                 break
-            if date_pattern.match(lines[index]):
+            if parse_date_line(lines[index]):
                 break
             index += 1
 
