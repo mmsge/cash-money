@@ -72,6 +72,12 @@ function compactKroner(value) {
   return `${sign}${formatted} kr`;
 }
 
+function signedKroner(value, fallback = "Ingen data") {
+  if (value === null || value === undefined) return fallback;
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${kroner(Math.abs(value))}`;
+}
+
 function integer(value, noun = "") {
   if (value === null || value === undefined) return "Ingen data";
   const formatted = new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 0 }).format(value);
@@ -441,6 +447,13 @@ function App() {
         <PercentTrendChart yearly={summary?.yearly || []} />
       </Panel>
 
+      <Panel
+        title="Kjøpekraftsgap"
+        subtitle="Faktisk årslønn mot et SSB KPI-justert referansenivå, med årlig avvik i kroner."
+      >
+        <PurchasingPowerGapChart yearly={summary?.yearly || []} />
+      </Panel>
+
       <Panel title="Prognose" subtitle="Forventet lønnsutvikling basert på gjennomsnittlig historisk prosentøkning.">
         <ForecastChart yearly={summary?.yearly || []} predictions={summary?.predictions} />
       </Panel>
@@ -456,6 +469,8 @@ function App() {
               <Metric label="Lønnsvekst" value={percent(year.change_percent)} />
               <Metric label={inflationLabel(year)} value={percent(year.inflation_percent, "mangler")} title={year.inflation_period} />
               <Metric label={realWageLabel(year)} value={percent(year.real_change_percent, "mangler")} />
+              <Metric label="KPI-vedlikeholdt lønn" value={kroner(year.inflation_maintained_salary_nok)} />
+              <Metric label="Årlig gap" value={signedKroner(year.annual_gap_nok, "mangler")} />
             </div>
             <div className="chips">
               {year.flags.map((flag) => (
@@ -1026,6 +1041,79 @@ function PercentTrendChart({ yearly }) {
                 />
               ))
             )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </ChartFrame>
+    </div>
+  );
+}
+
+function PurchasingPowerGapChart({ yearly }) {
+  if (!yearly.length) return <EmptyChart />;
+
+  const data = yearly.map((year) => ({
+    ...year,
+    year_label: String(year.salary_year),
+  }));
+  const latest = data.at(-1);
+
+  return (
+    <div className="chart-card" aria-label="Kjøpekraftsgap per lønnsår">
+      <div className="chart-toolbar">
+        <p className="chart-note">
+          Referanselinjen starter på første registrerte årslønn og justeres videre med SSB KPI for hvert lønnsår.
+        </p>
+        <div className="chart-summary chart-summary-list">
+          <span>Siste år</span>
+          <p style={{ "--series-color": "#0f766e" }}>
+            <small>Faktisk lønn</small>
+            <strong>{kroner(latest?.final_amount_nok)}</strong>
+          </p>
+          <p style={{ "--series-color": "#2563eb" }}>
+            <small>KPI-vedlikeholdt</small>
+            <strong>{kroner(latest?.inflation_maintained_salary_nok)}</strong>
+          </p>
+          <p style={{ "--series-color": "#b45309" }}>
+            <small>Årlig gap</small>
+            <strong>{signedKroner(latest?.annual_gap_nok, "mangler")}</strong>
+          </p>
+        </div>
+      </div>
+      <ChartFrame className="wide">
+        <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={280} initialDimension={{ width: 240, height: 280 }}>
+          <ComposedChart data={data} margin={{ top: 18, right: 28, left: 8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 5" vertical={false} />
+            <XAxis dataKey="year_label" interval="preserveStartEnd" tickLine={false} />
+            <YAxis yAxisId="salary" tickFormatter={compactNumber} tickLine={false} width={58} />
+            <YAxis yAxisId="gap" orientation="right" tickFormatter={compactNumber} tickLine={false} width={58} />
+            <Tooltip
+              content={
+                <ChartTooltip
+                  rows={(item) => [
+                    { label: "Faktisk årslønn", value: kroner(item.final_amount_nok) },
+                    { label: "KPI-vedlikeholdt lønn", value: kroner(item.inflation_maintained_salary_nok) },
+                    { label: "Årlig gap", value: signedKroner(item.annual_gap_nok, "mangler") },
+                    { label: inflationLabel(item), value: percent(item.inflation_percent, "mangler") },
+                  ]}
+                />
+              }
+            />
+            <Legend />
+            <ReferenceLine yAxisId="gap" y={0} stroke="rgba(23, 32, 25, 0.22)" strokeDasharray="6 6" />
+            <FlagReferenceLines flags={yearly} data={data} xKey="year_label" />
+            <Bar yAxisId="gap" dataKey="annual_gap_nok" name="Årlig gap" fill="rgba(180, 83, 9, 0.72)" radius={[8, 8, 0, 0]} maxBarSize={34} />
+            <Line yAxisId="salary" type="monotone" dataKey="final_amount_nok" name="Faktisk årslønn" stroke="#0f766e" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 7 }} />
+            <Line
+              yAxisId="salary"
+              type="monotone"
+              dataKey="inflation_maintained_salary_nok"
+              name="KPI-vedlikeholdt lønn"
+              stroke="#2563eb"
+              strokeWidth={3}
+              strokeDasharray="8 7"
+              dot={{ r: 4 }}
+              activeDot={{ r: 7 }}
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </ChartFrame>
