@@ -1,5 +1,20 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import {
+  Area,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { dataService, isDemoMode } from "./dataService.js";
 import "./styles.css";
 
@@ -444,41 +459,142 @@ function Metric({ label, value, title }) {
   );
 }
 
-function SalaryBarChart({ yearly }) {
-  if (!yearly.length) return <EmptyChart />;
-  const values = yearly.map((item) => item.final_amount_nok);
-  const max = Math.max(...values);
+function compactNumber(value) {
+  if (value === null || value === undefined) return "";
+  return new Intl.NumberFormat("nb-NO", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
+function ChartTooltip({ active, label, payload, rows, title }) {
+  if (!active || !payload?.length) return null;
+  const item = payload.find((entry) => entry?.payload)?.payload;
+  if (!item) return null;
+  const heading = title ? title(item, payload, label) : label;
+  const tooltipRows = rows(item, payload).filter((row) => row.value !== null && row.value !== undefined);
+
   return (
-    <div className="bars">
-      {yearly.map((item) => (
-        <div key={item.salary_year} className="bar-column">
-          <div className="bar-value">{kroner(item.final_amount_nok)}</div>
-          <div className="bar-track">
-            <div className="bar" style={{ height: `${Math.max((item.final_amount_nok / max) * 100, 8)}%` }} />
-          </div>
-          <span>{item.salary_year}</span>
-        </div>
+    <div className="chart-tooltip">
+      <strong>{heading}</strong>
+      {tooltipRows.map((row, index) => (
+        <p key={`${row.label}-${index}`}>
+          <span>{row.label}</span>
+          <b>{row.value}</b>
+        </p>
       ))}
     </div>
   );
 }
 
-function ChangeChart({ yearly }) {
-  const data = yearly.filter((item) => item.change_percent !== null && item.change_percent !== undefined);
-  if (!data.length) return <EmptyChart />;
-  const maxAbs = Math.max(...data.map((item) => Math.abs(item.change_percent)), 1);
+function ChartFrame({ children, className = "", style }) {
+  const ref = useRef(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+
+    function updateReady() {
+      const box = node.getBoundingClientRect();
+      setReady(box.width > 0 && box.height > 0);
+    }
+
+    updateReady();
+    if (!window.ResizeObserver) return undefined;
+    const observer = new ResizeObserver(updateReady);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="change-chart">
-      {data.map((item) => (
-        <div key={item.salary_year} className="change-row">
-          <span>{item.salary_year}</span>
-          <div className="change-track">
-            <div className="change-fill" style={{ width: `${(Math.abs(item.change_percent) / maxAbs) * 100}%` }} />
-          </div>
-          <strong>{percent(item.change_percent)}</strong>
-        </div>
-      ))}
+    <div ref={ref} className={`chart-frame ${className}`.trim()} style={style}>
+      {ready ? children : null}
     </div>
+  );
+}
+
+function FlagReferenceLines({ flags, data, xKey }) {
+  return chartFlags(flags)
+    .map((flag) => {
+      const point = data.find((item) => item.salary_year === flag.salary_year);
+      if (!point) return null;
+      return (
+        <ReferenceLine
+          key={flag.id}
+          x={point[xKey]}
+          stroke={flag.color}
+          strokeDasharray="5 6"
+          strokeOpacity={0.72}
+          label={{ value: flag.label, position: "insideTop", fill: flag.color, fontSize: 12, fontWeight: 800 }}
+        />
+      );
+    })
+    .filter(Boolean);
+}
+
+function SalaryBarChart({ yearly }) {
+  if (!yearly.length) return <EmptyChart />;
+  const data = yearly.map((item) => ({
+    ...item,
+    year_label: String(item.salary_year),
+  }));
+
+  return (
+    <ChartFrame>
+      <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={240} initialDimension={{ width: 240, height: 240 }}>
+        <BarChart data={data} margin={{ top: 8, right: 18, left: 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 5" vertical={false} />
+          <XAxis dataKey="year_label" interval="preserveStartEnd" tickLine={false} />
+          <YAxis tickFormatter={compactNumber} tickLine={false} width={58} />
+          <Tooltip
+            content={
+              <ChartTooltip
+                rows={(item) => [
+                  { label: "Årslønn", value: kroner(item.final_amount_nok) },
+                  { label: "Lønnsår", value: item.salary_year },
+                ]}
+              />
+            }
+          />
+          <Bar dataKey="final_amount_nok" name="Årslønn" fill="#0f766e" radius={[8, 8, 0, 0]} maxBarSize={58} />
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartFrame>
+  );
+}
+
+function ChangeChart({ yearly }) {
+  const data = yearly
+    .filter((item) => item.change_percent !== null && item.change_percent !== undefined)
+    .map((item) => ({ ...item, year_label: String(item.salary_year) }));
+  if (!data.length) return <EmptyChart />;
+
+  return (
+    <ChartFrame className="compact" style={{ "--chart-height": `${Math.max(240, data.length * 48)}px` }}>
+      <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={220} initialDimension={{ width: 240, height: 220 }}>
+        <BarChart data={data} layout="vertical" margin={{ top: 8, right: 26, left: 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 5" horizontal={false} />
+          <XAxis
+            type="number"
+            domain={[(dataMin) => Math.min(0, dataMin), (dataMax) => Math.max(0, dataMax)]}
+            tickFormatter={(value) => `${value}%`}
+            tickLine={false}
+          />
+          <YAxis type="category" dataKey="year_label" tickLine={false} width={52} />
+          <ReferenceLine x={0} stroke="rgba(23, 32, 25, 0.32)" />
+          <Tooltip
+            content={
+              <ChartTooltip
+                rows={(item) => [
+                  { label: "Lønnsvekst", value: percent(item.change_percent) },
+                  { label: "Økning", value: compactKroner(item.change_nok) },
+                  { label: "Sluttlønn", value: kroner(item.final_amount_nok) },
+                ]}
+              />
+            }
+          />
+          <Bar dataKey="change_percent" name="Prosentendring" fill="#b45309" radius={[0, 8, 8, 0]} maxBarSize={22} />
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartFrame>
   );
 }
 
@@ -491,93 +607,45 @@ function chartFlags(yearly) {
   );
 }
 
-function FlagMarkers({ flags, xByYear, top, bottom }) {
-  return flags
-    .filter((flag) => xByYear.has(flag.salary_year))
-    .map((flag, index) => {
-      const x = xByYear.get(flag.salary_year);
-      const labelY = top + 15 + (index % 3) * 24;
-      return (
-        <g key={flag.id} className="flag-marker">
-          <title>{`${flag.label} (${flag.salary_year})${flag.note ? `: ${flag.note}` : ""}`}</title>
-          <line
-            x1={x}
-            x2={x}
-            y1={top}
-            y2={bottom}
-            style={{ "--flag-color": flag.color }}
-          />
-          <text
-            x={x + 8}
-            y={labelY}
-            className="flag-label"
-            style={{ "--flag-color": flag.color }}
-          >
-            {flag.label}
-          </text>
-        </g>
-      );
-    });
-}
-
-function flagPositionsBetweenYears(years, xByYear) {
-  const sortedYears = [...new Set(years)].sort((a, b) => a - b);
-  return new Map(
-    sortedYears.flatMap((year, index) => {
-      const nextYear = sortedYears[index + 1];
-      if (!nextYear || !xByYear.has(year) || !xByYear.has(nextYear)) return [];
-      return [[year, (xByYear.get(year) + xByYear.get(nextYear)) / 2]];
-    }),
-  );
-}
-
 function StepChart({ steps, yearly }) {
   if (!steps.length) return <EmptyChart />;
-  const width = 900;
-  const height = 260;
-  const padding = 42;
-  const amounts = steps.map((step) => step.amount_nok);
-  const min = Math.min(...amounts) * 0.96;
-  const max = Math.max(...amounts) * 1.04;
-  const points = steps.map((step, index) => {
-    const x = padding + (index / Math.max(steps.length - 1, 1)) * (width - padding * 2);
-    const y = height - padding - ((step.amount_nok - min) / (max - min || 1)) * (height - padding * 2);
-    return { ...step, x, y };
-  });
-  const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
-  const xByYear = new Map();
-  for (const year of new Set(points.map((point) => point.salary_year))) {
-    const yearPoints = points.filter((point) => point.salary_year === year);
-    const averageX = yearPoints.reduce((sum, point) => sum + point.x, 0) / yearPoints.length;
-    xByYear.set(year, averageX);
-  }
-  const flagXByYear = flagPositionsBetweenYears(
-    yearly.map((year) => year.salary_year),
-    xByYear,
-  );
+  const data = steps.map((step, index) => ({
+    ...step,
+    step_label: `${step.salary_year}-${index}`,
+    display_label: `${step.salary_year} · ${step.valid_from.slice(5)}`,
+  }));
 
   return (
-    <div className="svg-wrap">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Lønnstrinn over tid">
-        <path className="line-area" d={`${path} L ${points.at(-1).x} ${height - padding} L ${points[0].x} ${height - padding} Z`} />
-        <FlagMarkers flags={chartFlags(yearly)} xByYear={flagXByYear} top={padding / 2} bottom={height - padding} />
-        <path className="line" d={path} />
-        {points.map((point) => (
-          <g key={point.id}>
-            <title>{`Lønnsår ${point.salary_year}
-Gyldig fra: ${point.valid_from}
-Årslønn: ${kroner(point.amount_nok)}${point.valid_to ? `\nGyldig til: ${point.valid_to}` : ""}`}</title>
-            <circle cx={point.x} cy={point.y} r="6" />
-            <text x={point.x} y={point.y - 14} textAnchor="middle">
-              {new Intl.NumberFormat("nb-NO", { notation: "compact" }).format(point.amount_nok)}
-            </text>
-            <text x={point.x} y={height - 14} textAnchor="middle" className="axis-label">
-              {point.salary_year}
-            </text>
-          </g>
-        ))}
-      </svg>
-    </div>
+    <ChartFrame className="wide">
+      <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={260} initialDimension={{ width: 240, height: 260 }}>
+        <LineChart data={data} margin={{ top: 18, right: 26, left: 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 5" vertical={false} />
+          <XAxis dataKey="step_label" tickFormatter={(_, index) => data[index]?.display_label || ""} interval="preserveStartEnd" tickLine={false} />
+          <YAxis
+            tickFormatter={compactNumber}
+            tickLine={false}
+            width={58}
+            domain={[(dataMin) => Math.floor(dataMin * 0.96), (dataMax) => Math.ceil(dataMax * 1.04)]}
+          />
+          <Tooltip
+            content={
+              <ChartTooltip
+                title={(item) => item.display_label}
+                rows={(item) => [
+                  { label: "Årslønn", value: kroner(item.amount_nok) },
+                  { label: "Lønnsår", value: item.salary_year },
+                  { label: "Gyldig fra", value: item.valid_from },
+                  { label: "Gyldig til", value: item.valid_to || "Løpende" },
+                ]}
+              />
+            }
+          />
+          <Legend />
+          <FlagReferenceLines flags={yearly} data={data} xKey="step_label" />
+          <Line type="monotone" dataKey="amount_nok" name="Årslønn" stroke="#0f766e" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 7 }} />
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartFrame>
   );
 }
 
@@ -589,134 +657,113 @@ function PercentTrendChart({ yearly }) {
       value: (year) => year.change_percent,
       format: percent,
       ariaLabel: "Nominell prosentvis lønnsutvikling per lønnsår",
-      lineClass: "percent-line",
-      dotClass: "percent-dot",
-      areaClass: "percent-area",
+      color: "#b45309",
+      fill: "rgba(180, 83, 9, 0.14)",
     },
     real: {
       label: "Reallønn",
       value: (year) => year.real_change_percent,
       format: (value) => percent(value, "mangler"),
       ariaLabel: "Reallønnsvekst per lønnsår etter inflasjon",
-      lineClass: "real-line",
-      dotClass: "real-dot",
-      areaClass: "real-area",
+      color: "#0f766e",
+      fill: "rgba(15, 118, 110, 0.14)",
     },
     inflation: {
       label: "Inflasjon",
       value: (year) => year.inflation_percent,
       format: (value) => percent(value, "mangler"),
       ariaLabel: "Inflasjon per lønnsår basert på SSB KPI",
-      lineClass: "inflation-line",
-      dotClass: "inflation-dot",
-      areaClass: "inflation-area",
+      color: "#2563eb",
+      fill: "rgba(37, 99, 235, 0.13)",
     },
     money: {
       label: "Kroner",
       value: (year) => year.change_nok,
       format: compactKroner,
       ariaLabel: "Lønnsøkning i kroner per lønnsår",
-      lineClass: "percent-line",
-      dotClass: "percent-dot",
-      areaClass: "percent-area",
+      color: "#b45309",
+      fill: "rgba(180, 83, 9, 0.14)",
     },
   };
   const config = metricConfig[mode];
-  const data = yearly.filter((year) => {
-    const value = config.value(year);
-    return value !== null && value !== undefined;
-  });
+  const data = yearly
+    .filter((year) => {
+      const value = config.value(year);
+      return value !== null && value !== undefined;
+    })
+    .map((year) => ({
+      ...year,
+      year_label: String(year.salary_year),
+      metric_value: config.value(year),
+    }));
   if (!data.length) return <EmptyChart />;
 
-  const width = 900;
-  const height = 260;
-  const padding = 42;
-  const values = data.map((year) => config.value(year));
-  const minValue = Math.min(0, ...values);
-  const maxValue = Math.max(0, ...values);
-  const range = maxValue - minValue || 1;
-  const yFor = (value) => height - padding - ((value - minValue) / range) * (height - padding * 2);
-  const points = data.map((year, index) => {
-    const x = padding + (index / Math.max(data.length - 1, 1)) * (width - padding * 2);
-    const value = config.value(year);
-    return { ...year, value, x, y: yFor(value) };
-  });
-  const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
-  const xByYear = new Map(points.map((point) => [point.salary_year, point.x]));
-  const flagXByYear = flagPositionsBetweenYears(
-    yearly.map((year) => year.salary_year),
-    xByYear,
-  );
-  const zeroY = yFor(0);
+  const values = data.map((year) => year.metric_value);
   const average = values.reduce((sum, value) => sum + value, 0) / values.length;
   const medianValue = median(values);
-  const averageY = yFor(average);
-  const medianY = yFor(medianValue);
   const formatValue = config.format;
 
   return (
-    <div className="svg-wrap percent-card">
-      <div className="chart-toggle" aria-label="Velg visning">
-        <button className={mode === "percent" ? "active" : ""} type="button" onClick={() => setMode("percent")}>
-          Lønnsvekst
-        </button>
-        <button className={mode === "real" ? "active" : ""} type="button" onClick={() => setMode("real")}>
-          Reallønn
-        </button>
-        <button className={mode === "inflation" ? "active" : ""} type="button" onClick={() => setMode("inflation")}>
-          Inflasjon
-        </button>
-        <button className={mode === "money" ? "active" : ""} type="button" onClick={() => setMode("money")}>
-          Kroner
-        </button>
-      </div>
-      <div className="chart-summary">
-        <span>Viser</span>
-        <strong>{config.label}</strong>
-        <span>Snitt</span>
-        <strong>{formatValue(average)}</strong>
-        <span>Median</span>
-        <strong>{formatValue(medianValue)}</strong>
+    <div className="chart-card" aria-label={config.ariaLabel}>
+      <div className="chart-toolbar">
+        <div className="chart-toggle" aria-label="Velg visning">
+          <button className={mode === "percent" ? "active" : ""} type="button" onClick={() => setMode("percent")}>
+            Lønnsvekst
+          </button>
+          <button className={mode === "real" ? "active" : ""} type="button" onClick={() => setMode("real")}>
+            Reallønn
+          </button>
+          <button className={mode === "inflation" ? "active" : ""} type="button" onClick={() => setMode("inflation")}>
+            Inflasjon
+          </button>
+          <button className={mode === "money" ? "active" : ""} type="button" onClick={() => setMode("money")}>
+            Kroner
+          </button>
+        </div>
+        <div className="chart-summary">
+          <span>Viser</span>
+          <strong>{config.label}</strong>
+          <span>Snitt</span>
+          <strong>{formatValue(average)}</strong>
+          <span>Median</span>
+          <strong>{formatValue(medianValue)}</strong>
+        </div>
       </div>
       <p className="chart-note">
         Inflasjon følger valgt lønnsår og bruker SSB KPI totalindeks fra startmåned til samme måned året etter.
       </p>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={config.ariaLabel}>
-        <line className="reference-line" x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} />
-        <line className="average-line" x1={padding} x2={width - padding} y1={averageY} y2={averageY} />
-        <line className="median-line" x1={padding} x2={width - padding} y1={medianY} y2={medianY} />
-        <path
-          className={config.areaClass}
-          d={`${path} L ${points.at(-1).x} ${height - padding} L ${points[0].x} ${height - padding} Z`}
-        />
-        <FlagMarkers flags={chartFlags(yearly)} xByYear={flagXByYear} top={padding / 2} bottom={height - padding} />
-        <text x={width - padding} y={averageY - 8} textAnchor="end" className="reference-label">
-          Snitt {formatValue(average)}
-        </text>
-        <text x={width - padding} y={medianY + 18} textAnchor="end" className="reference-label median-label">
-          Median {formatValue(medianValue)}
-        </text>
-        <path className={config.lineClass} d={path} />
-        {points.map((point) => (
-          <g key={`${mode}-${point.salary_year}`}>
-            <title>{`Lønnsår ${point.salary_year}
-Økning: ${compactKroner(point.change_nok)}
-Lønnsvekst: ${percent(point.change_percent)}
-Inflasjon: ${percent(point.inflation_percent, "mangler")}
-Reallønnsvekst: ${percent(point.real_change_percent, "mangler")}
-Inflasjonsperiode: ${point.inflation_period || "mangler"}
-Sluttlønn: ${kroner(point.final_amount_nok)}
-Antall lønnstrinn: ${point.steps.length}`}</title>
-            <circle className={config.dotClass} cx={point.x} cy={point.y} r="6" />
-            <text x={point.x} y={point.y - 14} textAnchor="middle">
-              {formatValue(point.value)}
-            </text>
-            <text x={point.x} y={height - 14} textAnchor="middle" className="axis-label">
-              {point.salary_year}
-            </text>
-          </g>
-        ))}
-      </svg>
+      <ChartFrame className="wide">
+        <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={260} initialDimension={{ width: 240, height: 260 }}>
+          <ComposedChart data={data} margin={{ top: 18, right: 28, left: 8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 5" vertical={false} />
+            <XAxis dataKey="year_label" interval="preserveStartEnd" tickLine={false} />
+            <YAxis tickFormatter={mode === "money" ? compactNumber : (value) => `${value}%`} tickLine={false} width={58} />
+            <Tooltip
+              content={
+                <ChartTooltip
+                  rows={(item) => [
+                    { label: config.label, value: formatValue(item.metric_value) },
+                    { label: "Økning", value: compactKroner(item.change_nok) },
+                    { label: "Lønnsvekst", value: percent(item.change_percent) },
+                    { label: "Inflasjon", value: percent(item.inflation_percent, "mangler") },
+                    { label: "Reallønnsvekst", value: percent(item.real_change_percent, "mangler") },
+                    { label: "Inflasjonsperiode", value: item.inflation_period || "mangler" },
+                    { label: "Sluttlønn", value: kroner(item.final_amount_nok) },
+                    { label: "Antall lønnstrinn", value: item.steps.length },
+                  ]}
+                />
+              }
+            />
+            <Legend />
+            <ReferenceLine y={0} stroke="rgba(23, 32, 25, 0.22)" strokeDasharray="6 6" />
+            <ReferenceLine y={average} stroke="#0f766e" strokeDasharray="4 7" label={{ value: `Snitt ${formatValue(average)}`, position: "right", fill: "#0f766e", fontSize: 12 }} />
+            <ReferenceLine y={medianValue} stroke="#b45309" strokeDasharray="8 7" label={{ value: `Median ${formatValue(medianValue)}`, position: "right", fill: "#b45309", fontSize: 12 }} />
+            <FlagReferenceLines flags={yearly} data={data} xKey="year_label" />
+            <Area type="monotone" dataKey="metric_value" name={config.label} stroke="none" fill={config.fill} legendType="none" />
+            <Line type="monotone" dataKey="metric_value" name={config.label} stroke={config.color} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 7 }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </ChartFrame>
     </div>
   );
 }
@@ -725,67 +772,74 @@ function ForecastChart({ yearly, predictions }) {
   const predictedItems = predictions?.items || [];
   if (!yearly.length || !predictedItems.length) return <EmptyChart />;
 
-  const width = 900;
-  const height = 280;
-  const padding = 42;
   const actualPoints = yearly.map((year) => ({
     salary_year: year.salary_year,
+    year_label: String(year.salary_year),
+    actual_amount: year.final_amount_nok,
+    forecast_amount: null,
     amount_nok: year.final_amount_nok,
-    kind: "actual",
+    kind_label: "Historikk",
   }));
+  actualPoints[actualPoints.length - 1].forecast_amount = actualPoints.at(-1).actual_amount;
   const forecastPoints = predictedItems.map((item) => ({
     salary_year: item.salary_year,
+    year_label: String(item.salary_year),
+    actual_amount: null,
+    forecast_amount: item.predicted_amount_nok,
     amount_nok: item.predicted_amount_nok,
-    kind: "prediction",
+    kind_label: "Prognose",
   }));
-  const points = [...actualPoints, ...forecastPoints];
-  const amounts = points.map((point) => point.amount_nok);
-  const min = Math.min(...amounts) * 0.96;
-  const max = Math.max(...amounts) * 1.04;
-  const positioned = points.map((point, index) => {
-    const x = padding + (index / Math.max(points.length - 1, 1)) * (width - padding * 2);
-    const y = height - padding - ((point.amount_nok - min) / (max - min || 1)) * (height - padding * 2);
-    return { ...point, x, y };
-  });
-  const actualPositioned = positioned.filter((point) => point.kind === "actual");
-  const forecastPositioned = positioned.filter((point) => point.kind === "prediction");
-  const actualPath = actualPositioned.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
-  const connectorPath = `M ${actualPositioned.at(-1).x} ${actualPositioned.at(-1).y} ${forecastPositioned
-    .map((point) => `L ${point.x} ${point.y}`)
-    .join(" ")}`;
-  const firstPrediction = forecastPositioned[0];
-  const lastPrediction = forecastPositioned.at(-1);
+  const data = [...actualPoints, ...forecastPoints];
 
   return (
-    <div className="svg-wrap forecast-card">
+    <div className="chart-card">
       <div className="chart-summary forecast-summary">
         <span>Basert på {predictions.based_on_years} lønnsår</span>
         <strong>{percent(predictions.average_change_percent)}</strong>
         <small>snittvekst brukt fremover</small>
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Prognose for fremtidig lønnsutvikling">
-        <path
-          className="forecast-area"
-          d={`${connectorPath} L ${lastPrediction.x} ${height - padding} L ${firstPrediction.x} ${height - padding} Z`}
-        />
-        <path className="line" d={actualPath} />
-        <path className="forecast-line" d={connectorPath} />
-        {positioned.map((point) => (
-          <g key={`${point.kind}-${point.salary_year}`}>
-            <title>{`${point.kind === "prediction" ? "Prognose" : "Historikk"} ${point.salary_year}
-Årslønn: ${kroner(point.amount_nok)}${
-              point.kind === "prediction" ? `\nBasert på snittvekst: ${percent(predictions.average_change_percent)}` : ""
-            }`}</title>
-            <circle className={point.kind === "prediction" ? "forecast-dot" : ""} cx={point.x} cy={point.y} r="6" />
-            <text x={point.x} y={point.y - 14} textAnchor="middle">
-              {new Intl.NumberFormat("nb-NO", { notation: "compact" }).format(point.amount_nok)}
-            </text>
-            <text x={point.x} y={height - 14} textAnchor="middle" className="axis-label">
-              {point.salary_year}
-            </text>
-          </g>
-        ))}
-      </svg>
+      <ChartFrame className="forecast">
+        <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={260} initialDimension={{ width: 240, height: 260 }}>
+          <ComposedChart data={data} margin={{ top: 18, right: 28, left: 8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 5" vertical={false} />
+            <XAxis dataKey="year_label" interval="preserveStartEnd" tickLine={false} />
+            <YAxis
+              tickFormatter={compactNumber}
+              tickLine={false}
+              width={58}
+              domain={[(dataMin) => Math.floor(dataMin * 0.96), (dataMax) => Math.ceil(dataMax * 1.04)]}
+            />
+            <Tooltip
+              content={
+                <ChartTooltip
+                  rows={(item) => [
+                    { label: "Type", value: item.kind_label },
+                    { label: "Årslønn", value: kroner(item.amount_nok) },
+                    {
+                      label: "Metode",
+                      value: item.forecast_amount ? `Snittvekst ${percent(predictions.average_change_percent)}` : null,
+                    },
+                  ]}
+                />
+              }
+            />
+            <Legend />
+            <Area type="monotone" dataKey="forecast_amount" name="Prognoseområde" stroke="none" fill="rgba(180, 83, 9, 0.12)" connectNulls legendType="none" />
+            <Line type="monotone" dataKey="actual_amount" name="Historikk" stroke="#0f766e" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 7 }} />
+            <Line
+              type="monotone"
+              dataKey="forecast_amount"
+              name="Prognose"
+              stroke="#b45309"
+              strokeWidth={3}
+              strokeDasharray="8 7"
+              dot={{ r: 4 }}
+              activeDot={{ r: 7 }}
+              connectNulls
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </ChartFrame>
     </div>
   );
 }
