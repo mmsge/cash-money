@@ -94,6 +94,11 @@ NOK 555000"""
         self.assertEqual(yearly[2025]["inflation_preliminary"], True)
         self.assertEqual(yearly[2025]["inflation_period"], "2025-05 til 2026-04 (foreløpig, mål 2026-05)")
         self.assertEqual(yearly[2025]["real_change_percent"], 2.42)
+        self.assertEqual(summary["dashboard"]["current_salary_nok"], 520000)
+        self.assertEqual(summary["dashboard"]["total_nominal_growth_percent"], 30.0)
+        self.assertEqual(summary["dashboard"]["cumulative_real_growth_percent"], 5.46)
+        self.assertEqual(summary["dashboard"]["below_inflation_years_count"], 0)
+        self.assertEqual(summary["dashboard"]["purchasing_power_adjustment_nok"], 0)
         self.assertEqual(summary["predictions"]["average_change_percent"], 5.39)
         self.assertEqual(summary["predictions"]["based_on_years"], 5)
         self.assertEqual(summary["predictions"]["items"][0]["salary_year"], 2027)
@@ -126,6 +131,8 @@ NOK 555000"""
         self.assertEqual(yearly[2022]["inflation_period"], "2022-01 til 2023-01")
         self.assertEqual(yearly[2022]["inflation_percent"], 7.02)
         self.assertEqual(yearly[2022]["real_change_percent"], 0.48)
+        self.assertEqual(summary["dashboard"]["cumulative_real_growth_percent"], 4.71)
+        self.assertEqual(summary["dashboard"]["below_inflation_years_count"], 1)
 
     def test_inflation_for_salary_year_returns_none_when_end_month_is_missing(self):
         inflation = app.inflation_for_salary_year(2026, 5)

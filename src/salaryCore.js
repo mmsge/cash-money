@@ -163,6 +163,52 @@ export function buildPredictions(yearly, yearsAhead = 3) {
   };
 }
 
+function compoundPercentChanges(values) {
+  if (!values.length) return null;
+  return values.reduce((factor, value) => factor * (1 + value / 100), 1);
+}
+
+export function buildDashboard(yearly) {
+  if (!yearly.length) {
+    return {
+      current_salary_nok: null,
+      total_nominal_growth_percent: null,
+      cumulative_real_growth_percent: null,
+      below_inflation_years_count: 0,
+      purchasing_power_adjustment_nok: null,
+    };
+  }
+
+  const firstAmount = Number(yearly[0].final_amount_nok);
+  const latestAmount = Number(yearly.at(-1).final_amount_nok);
+  const inflationPercents = yearly
+    .map((year) => year.inflation_percent)
+    .filter((value) => value !== null && value !== undefined)
+    .map(Number);
+  const cumulativeInflationFactor = compoundPercentChanges(inflationPercents);
+  const inflationAdjustedBaseline =
+    cumulativeInflationFactor === null ? null : Math.round(firstAmount * cumulativeInflationFactor);
+
+  return {
+    current_salary_nok: latestAmount,
+    total_nominal_growth_percent: roundPercent(((latestAmount - firstAmount) / firstAmount) * 100),
+    cumulative_real_growth_percent:
+      cumulativeInflationFactor === null
+        ? null
+        : roundPercent(((latestAmount / (firstAmount * cumulativeInflationFactor)) - 1) * 100),
+    below_inflation_years_count: yearly.filter(
+      (year) =>
+        year.change_percent !== null &&
+        year.change_percent !== undefined &&
+        year.inflation_percent !== null &&
+        year.inflation_percent !== undefined &&
+        Number(year.change_percent) < Number(year.inflation_percent),
+    ).length,
+    purchasing_power_adjustment_nok:
+      inflationAdjustedBaseline === null ? null : Math.max(0, inflationAdjustedBaseline - latestAmount),
+  };
+}
+
 export function buildSummary(entries, flags, startMonth = DEFAULT_SALARY_YEAR_START_MONTH) {
   const normalizedStartMonth = Number.isInteger(startMonth) && startMonth >= 1 && startMonth <= 12 ? startMonth : DEFAULT_SALARY_YEAR_START_MONTH;
   const sortedEntries = [...entries].sort((a, b) => a.valid_from.localeCompare(b.valid_from) || a.id - b.id);
@@ -227,6 +273,7 @@ export function buildSummary(entries, flags, startMonth = DEFAULT_SALARY_YEAR_ST
     salary_year_start_month: normalizedStartMonth,
     steps,
     yearly,
+    dashboard: buildDashboard(yearly),
     predictions: buildPredictions(yearly),
     flags: sortedFlags,
   };
