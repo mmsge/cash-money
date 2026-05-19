@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import { dataService, isDemoMode } from "./dataService.js";
+import { buildAdjustmentCalculation } from "./salaryCore.js";
 import "./styles.css";
 
 const MONTHS = [
@@ -113,6 +114,8 @@ function App() {
     color: FLAG_COLORS[0],
   });
   const [pasteText, setPasteText] = useState("");
+  const [adjustmentMode, setAdjustmentMode] = useState("target_salary");
+  const [adjustmentValue, setAdjustmentValue] = useState("");
 
   async function refresh() {
     const [nextSummary, nextEntries, nextFlags] = await Promise.all([
@@ -405,6 +408,19 @@ function App() {
         </section>
       </Panel>
 
+      <Panel
+        title="Justeringskalkulator"
+        subtitle="Regn på mål-lønn eller ønsket økning og se hva det betyr etter siste kjente inflasjon."
+      >
+        <AdjustmentCalculator
+          summary={summary}
+          mode={adjustmentMode}
+          value={adjustmentValue}
+          onModeChange={setAdjustmentMode}
+          onValueChange={setAdjustmentValue}
+        />
+      </Panel>
+
       <section className="chart-grid">
         <Panel title="Årslønn per lønnsår" subtitle="Siste lønnstrinn i hvert lønnsår.">
           <SalaryBarChart yearly={summary?.yearly || []} />
@@ -517,6 +533,116 @@ function MetricCard({ label, value, detail, accent = "default" }) {
       <strong>{value}</strong>
       <small>{detail}</small>
     </article>
+  );
+}
+
+function AdjustmentCalculator({ summary, mode, value, onModeChange, onValueChange }) {
+  const currentSalaryNok = summary?.dashboard?.current_salary_nok;
+  const latestInflationYear = [...(summary?.yearly || [])]
+    .reverse()
+    .find((year) => year.inflation_percent !== null && year.inflation_percent !== undefined);
+  const latestInflationPercent = latestInflationYear?.inflation_percent ?? null;
+  const purchasingPowerAdjustmentNok = summary?.dashboard?.purchasing_power_adjustment_nok ?? null;
+  const hasInput = String(value).trim() !== "";
+
+  let calculation = null;
+  let calculationError = "";
+  if (hasInput && currentSalaryNok) {
+    try {
+      calculation = buildAdjustmentCalculation({
+        currentSalaryNok,
+        latestInflationPercent,
+        purchasingPowerAdjustmentNok,
+        mode,
+        value,
+      });
+    } catch (error) {
+      calculationError = error.message;
+    }
+  }
+
+  const modeOptions = [
+    { id: "target_salary", label: "Mål-lønn", placeholder: "560000", inputLabel: "Ønsket ny årslønn" },
+    { id: "raise_nok", label: "Økning i NOK", placeholder: "30000", inputLabel: "Ønsket lønnsøkning i kroner" },
+    { id: "raise_percent", label: "Økning i prosent", placeholder: "5", inputLabel: "Ønsket lønnsøkning i prosent" },
+  ];
+  const activeMode = modeOptions.find((option) => option.id === mode) || modeOptions[0];
+
+  if (!currentSalaryNok) {
+    return <p className="muted">Legg inn minst én lønnsrad for å bruke kalkulatoren.</p>;
+  }
+
+  return (
+    <div className="adjustment-calculator">
+      <div className="adjustment-controls">
+        <div className="chart-toggle">
+          {modeOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={mode === option.id ? "active" : ""}
+              onClick={() => {
+                onModeChange(option.id);
+                onValueChange("");
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <label>
+          {activeMode.inputLabel}
+          <input
+            inputMode="decimal"
+            value={value}
+            onChange={(event) => onValueChange(event.target.value.replace(",", "."))}
+            placeholder={activeMode.placeholder}
+          />
+        </label>
+        <p className="chart-note">
+          Dagens årslønn er {kroner(currentSalaryNok)}. Siste kjente inflasjon er{" "}
+          {latestInflationPercent === null ? "ikke tilgjengelig ennå" : `${percent(latestInflationPercent, "mangler")} for ${latestInflationYear?.inflation_period}`}.
+        </p>
+      </div>
+
+      {calculationError && <div className="status error">{calculationError}</div>}
+
+      {calculation && (
+        <div className="adjustment-results">
+          <section className="summary-dashboard adjustment-summary">
+            <MetricCard label="Ny årslønn" value={kroner(calculation.requested_new_salary_nok)} detail="Resultatet av ønsket justering" />
+            <MetricCard
+              label="Økning i NOK"
+              value={kroner(calculation.raise_nok)}
+              detail={`Tilsvarer ${percent(calculation.raise_percent, "0 %")} av dagens lønn`}
+            />
+            <MetricCard
+              label="Reell økning"
+              value={percent(calculation.real_raise_percent, "mangler inflasjon")}
+              detail={
+                calculation.real_raise_nok === null
+                  ? "Kan ikke regnes uten siste inflasjonstall"
+                  : `${kroner(calculation.real_raise_nok)} etter inflasjon`
+              }
+            />
+            <MetricCard
+              label="Kjøpekraft"
+              value={calculation.restores_cumulative_purchasing_power ? "Ja" : "Nei"}
+              detail={
+                calculation.restores_cumulative_purchasing_power
+                  ? "Ønsket nivå henter inn akkumulert kjøpekraft"
+                  : `Mangler ${kroner(calculation.shortfall_to_restore_nok)} for fullt etterslep`
+              }
+              accent={calculation.restores_cumulative_purchasing_power ? "success" : "warning"}
+            />
+          </section>
+          <div className="adjustment-explanation">
+            <h3>Forslag til formulering</h3>
+            <p>{calculation.explanation}</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

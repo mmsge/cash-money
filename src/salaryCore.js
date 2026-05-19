@@ -168,6 +168,10 @@ function compoundPercentChanges(values) {
   return values.reduce((factor, value) => factor * (1 + value / 100), 1);
 }
 
+function roundNok(value) {
+  return Math.round(value);
+}
+
 export function buildDashboard(yearly) {
   if (!yearly.length) {
     return {
@@ -206,6 +210,79 @@ export function buildDashboard(yearly) {
     ).length,
     purchasing_power_adjustment_nok:
       inflationAdjustedBaseline === null ? null : Math.max(0, inflationAdjustedBaseline - latestAmount),
+  };
+}
+
+export function buildAdjustmentCalculation({
+  currentSalaryNok,
+  latestInflationPercent,
+  purchasingPowerAdjustmentNok,
+  mode,
+  value,
+}) {
+  const currentSalary = Number(currentSalaryNok);
+  const inflationPercent = latestInflationPercent === null || latestInflationPercent === undefined ? null : Number(latestInflationPercent);
+  const purchasingPowerGap =
+    purchasingPowerAdjustmentNok === null || purchasingPowerAdjustmentNok === undefined ? 0 : Number(purchasingPowerAdjustmentNok);
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(currentSalary) || currentSalary <= 0) {
+    throw new Error("Mangler gyldig nåværende årslønn.");
+  }
+  if (!["target_salary", "raise_nok", "raise_percent"].includes(mode)) {
+    throw new Error("Ukjent justeringsmodus.");
+  }
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    throw new Error("Beløpet må være 0 eller høyere.");
+  }
+
+  const requestedNewSalary =
+    mode === "target_salary"
+      ? roundNok(numericValue)
+      : mode === "raise_nok"
+        ? roundNok(currentSalary + numericValue)
+        : roundNok(currentSalary * (1 + numericValue / 100));
+
+  if (requestedNewSalary < currentSalary) {
+    throw new Error("Ny årslønn kan ikke være lavere enn dagens lønn.");
+  }
+
+  const raiseNok = requestedNewSalary - currentSalary;
+  const raisePercent = roundPercent((raiseNok / currentSalary) * 100);
+  const realRaisePercent = inflationPercent === null ? null : roundPercent(raisePercent - inflationPercent);
+  const realRaiseNok =
+    inflationPercent === null ? null : roundNok(currentSalary * ((raisePercent - inflationPercent) / 100));
+  const restoreThresholdSalary = roundNok(currentSalary + purchasingPowerGap);
+  const restoresCumulativePurchasingPower = requestedNewSalary >= restoreThresholdSalary;
+  const shortfallToRestoreNok = Math.max(0, restoreThresholdSalary - requestedNewSalary);
+
+  let explanation = `Dette tilsvarer ${raiseNok} kroner, eller ${raisePercent} % mer enn dagens årslønn.`;
+  if (inflationPercent !== null) {
+    explanation += ` Med siste kjente inflasjon på ${inflationPercent} % gir det ${realRaisePercent} % reallønnsvekst.`;
+  } else {
+    explanation += " Reallønnsvekst kan ikke beregnes ennå fordi siste inflasjonstall mangler.";
+  }
+  if (purchasingPowerGap <= 0) {
+    explanation += restoresCumulativePurchasingPower
+      ? " Historikken din ligger allerede på eller over tidligere kjøpekraft, så dette styrker nivået videre."
+      : "";
+  } else if (restoresCumulativePurchasingPower) {
+    explanation += " Det er nok til å hente inn den akkumulerte kjøpekraften fra historikken.";
+  } else {
+    explanation += ` Det mangler fortsatt ${shortfallToRestoreNok} kroner for å hente inn akkumulert kjøpekraft fullt ut.`;
+  }
+
+  return {
+    requested_new_salary_nok: requestedNewSalary,
+    raise_nok: raiseNok,
+    raise_percent: raisePercent,
+    latest_inflation_percent: inflationPercent,
+    real_raise_percent: realRaisePercent,
+    real_raise_nok: realRaiseNok,
+    restore_threshold_salary_nok: restoreThresholdSalary,
+    restores_cumulative_purchasing_power: restoresCumulativePurchasingPower,
+    shortfall_to_restore_nok: shortfallToRestoreNok,
+    explanation,
   };
 }
 
