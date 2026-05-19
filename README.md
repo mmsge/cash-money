@@ -74,10 +74,10 @@ Eksempel:
 
 ```text
 2026-05-01
-NOK 200000
+NOK 456000
 
 2025-05-01 2026-04-30
-100000
+432000
 ```
 
 Dette fungerer også når teksten er limt inn direkte fra HR-systemet, så lenge hver lønnsrad inneholder en datolinje etterfulgt av en lønnslinje.

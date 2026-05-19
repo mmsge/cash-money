@@ -20,10 +20,10 @@ const MONTHS = [
 
 const FLAG_COLORS = ["#d97706", "#0f766e", "#2563eb", "#be123c", "#6d28d9", "#4d7c0f"];
 const IMPORT_FORMAT_EXAMPLE = `2026-05-01
-NOK 200000
+NOK 456000
 
 2025-05-01 2026-04-30
-100000`;
+432000`;
 
 function kroner(value) {
   if (value === null || value === undefined) return "Ingen data";
@@ -223,7 +223,7 @@ function App() {
               value={pasteText}
               onChange={(event) => setPasteText(event.target.value)}
               rows={12}
-              placeholder={"2026-05-01\nNOK 200000\n\n2025-05-01 2026-04-30\n100000"}
+              placeholder={"2026-05-01\nNOK 456000\n\n2025-05-01 2026-04-30\n432000"}
             />
             <button type="submit">Importer tekst</button>
           </form>
@@ -257,7 +257,7 @@ function App() {
                 inputMode="numeric"
                 value={salaryForm.amount_nok}
                 onChange={(event) => setSalaryForm({ ...salaryForm, amount_nok: event.target.value })}
-                placeholder="860000"
+                placeholder="456000"
               />
             </label>
             <div className="button-row">
