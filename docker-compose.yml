@@ -1,5 +1,5 @@
 services:
-  lonnsutvikling:
+  cash-money:
     build: .
     ports:
       - "8080:8080"
