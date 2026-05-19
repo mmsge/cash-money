@@ -19,6 +19,11 @@ const MONTHS = [
 ];
 
 const FLAG_COLORS = ["#d97706", "#0f766e", "#2563eb", "#be123c", "#6d28d9", "#4d7c0f"];
+const IMPORT_FORMAT_EXAMPLE = `2026-05-01
+NOK 200000
+
+2025-05-01 2026-04-30
+100000`;
 
 function kroner(value) {
   if (value === null || value === undefined) return "Ingen data";
@@ -205,11 +210,20 @@ function App() {
 
         <Panel title="Lim inn lønnshistorikk" subtitle="Eksisterende rader med samme startdato oppdateres.">
           <form onSubmit={importText} className="stack">
+            <div className="import-format">
+              <p>Forventet format per lønnsrad:</p>
+              <ul>
+                <li>første linje: <code>YYYY-MM-DD</code> eller <code>YYYY-MM-DD YYYY-MM-DD</code></li>
+                <li>neste linje: årslønn som heltall, valgfritt med <code>NOK</code></li>
+                <li>annen tekst som overskrifter og tomme linjer ignoreres</li>
+              </ul>
+              <pre>{IMPORT_FORMAT_EXAMPLE}</pre>
+            </div>
             <textarea
               value={pasteText}
               onChange={(event) => setPasteText(event.target.value)}
               rows={12}
-              placeholder="Lim inn lønnshistorikken din her"
+              placeholder={"2026-05-01\nNOK 200000\n\n2025-05-01 2026-04-30\n100000"}
             />
             <button type="submit">Importer tekst</button>
           </form>

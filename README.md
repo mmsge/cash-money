@@ -55,6 +55,27 @@ Docker/GHCR er fortsatt fullversjonen for varig lokal lagring:
 - Årskort viser sluttlønn og prosentendring mot forrige lønnsår.
 - Flagg knyttes til lønnsår, for eksempel forfremmelse, permisjon eller sykefravær.
 
+## Format for "Lim inn lønnshistorikk"
+
+Tekstimporten leter etter lønnsrader i denne formen:
+
+- Første linje i en rad er datoene: `YYYY-MM-DD` eller `YYYY-MM-DD YYYY-MM-DD`
+- Neste linje er årslønn som heltall
+- Lønnslinjen kan valgfritt starte med `NOK`
+- Overskrifter, annen tekst og tomme linjer ignoreres
+
+Eksempel:
+
+```text
+2026-05-01
+NOK 200000
+
+2025-05-01 2026-04-30
+100000
+```
+
+Dette fungerer også når teksten er limt inn direkte fra HR-systemet, så lenge hver lønnsrad inneholder en datolinje etterfulgt av en lønnslinje.
+
 ## Utvikling uten Docker
 
 Frontend:
