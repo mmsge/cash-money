@@ -1,0 +1,48 @@
+name: Update SSB CPI data
+
+on:
+  schedule:
+    - cron: "15 10 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update inflation data
+        run: npm run update:inflation
+
+      - name: Run JavaScript tests
+        run: npm run test:js
+
+      - name: Run Python tests
+        run: npm run test:py
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: codex/update-ssb-cpi-data
+          title: Update SSB CPI data
+          commit-message: Update SSB CPI data
+          body: |
+            Updates embedded CPI data from SSB StatBank table 14709.
+
+            Validation:
+            - npm run test:js
+            - npm run test:py

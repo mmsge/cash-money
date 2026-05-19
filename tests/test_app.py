@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from server import app
+from server.inflation_data import CPI_INDEX_BY_MONTH, INFLATION_DATA_META
 
 
 SAMPLE_TEXT = """Årslønn (heltid)
@@ -107,6 +108,17 @@ class SalaryAppTests(unittest.TestCase):
 
         self.assertEqual(inflation["inflation_period"], "2026-05 til 2027-05")
         self.assertEqual(inflation["inflation_percent"], None)
+
+    def test_embedded_ssb_cpi_data_includes_historical_and_latest_generated_coverage(self):
+        months = sorted(CPI_INDEX_BY_MONTH)
+
+        self.assertEqual(INFLATION_DATA_META["table"], "14709")
+        self.assertEqual(INFLATION_DATA_META["base_period"], "2025=100")
+        self.assertEqual(INFLATION_DATA_META["first_month"], "1920-03")
+        self.assertEqual(INFLATION_DATA_META["latest_month"], months[-1])
+        self.assertGreaterEqual(INFLATION_DATA_META["latest_month"], "2026-04")
+        self.assertEqual(CPI_INDEX_BY_MONTH["1920-03"], 3.7)
+        self.assertEqual(CPI_INDEX_BY_MONTH["2026-04"], 102.8)
 
 
 if __name__ == "__main__":

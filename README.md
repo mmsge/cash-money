@@ -59,7 +59,15 @@ Docker/GHCR er fortsatt fullversjonen for varig lokal lagring:
 
 Inflasjon beregnes fra innebygde månedlige KPI-tall fra SSB StatBank tabell 14709, `Konsumprisindeks, by month (2025=100)`.
 Sammenligningen følger valgt startmåned for lønnsåret, for eksempel mai til mai når lønnsåret starter i mai.
-Fremtidige lønnsår viser manglende inflasjon til SSB har publisert sluttmåneden og tallene er oppdatert i `src/inflationData.js` og `server/inflation_data.py`.
+KPI-data genereres inn i `src/inflationData.js` og `server/inflation_data.py`, slik at appen ikke kaller SSB ved kjøring.
+GitHub Actions oppdaterer dataene ukentlig fra SSB og åpner en PR hvis nye tall er publisert.
+Fremtidige lønnsår viser manglende inflasjon til SSB har publisert sluttmåneden og den planlagte datajobben er flettet inn.
+
+Oppdater data manuelt:
+
+```bash
+npm run update:inflation
+```
 
 ## Format for "Lim inn lønnshistorikk"
 
