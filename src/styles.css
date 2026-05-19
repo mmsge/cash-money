@@ -467,8 +467,64 @@ textarea:focus {
   font-size: 1.45rem;
 }
 
+.chart-summary-list {
+  min-width: min(320px, 100%);
+}
+
+.chart-summary-list p {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+  border-left: 4px solid var(--series-color);
+  padding-left: 10px;
+}
+
+.chart-summary-list strong {
+  color: var(--series-color);
+  font-size: 1.05rem;
+}
+
 .chart-summary small {
   color: var(--muted);
+}
+
+.series-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.series-toggle label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  border-radius: 999px;
+  padding: 0.42rem 0.72rem;
+  background: rgba(255, 250, 240, 0.78);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.series-toggle input {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0;
+  accent-color: var(--series-color);
+}
+
+.series-toggle label:has(input:checked) {
+  border-color: color-mix(in srgb, var(--series-color) 34%, transparent);
+  color: var(--series-color);
+}
+
+.series-toggle label:has(input:disabled) {
+  cursor: default;
 }
 
 .forecast-summary strong {
