@@ -52,8 +52,14 @@ Docker/GHCR er fortsatt fullversjonen for varig lokal lagring:
 - Import av tekst på formatet fra HR-systemet med `Årslønn (heltid)`.
 - Lønnsår starter som standard i mai, og kan endres i UI.
 - Flere lønnsøkninger i samme lønnsår vises som egne lønnstrinn.
-- Årskort viser sluttlønn og prosentendring mot forrige lønnsår.
+- Årskort viser sluttlønn, lønnsvekst, inflasjon og reallønnsvekst mot forrige lønnsår.
 - Flagg knyttes til lønnsår, for eksempel forfremmelse, permisjon eller sykefravær.
+
+## Inflasjonsdata
+
+Inflasjon beregnes fra innebygde månedlige KPI-tall fra SSB StatBank tabell 14709, `Konsumprisindeks, by month (2025=100)`.
+Sammenligningen følger valgt startmåned for lønnsåret, for eksempel mai til mai når lønnsåret starter i mai.
+Fremtidige lønnsår viser manglende inflasjon til SSB har publisert sluttmåneden og tallene er oppdatert i `src/inflationData.js` og `server/inflation_data.py`.
 
 ## Format for "Lim inn lønnshistorikk"
 
@@ -82,8 +88,10 @@ Frontend:
 
 ```bash
 npm install
-npm run dev
+npm run dev:pages
 ```
+
+Dette starter frontend i statisk demomodus med `localStorage`, uten Python-backend. Bruk `http://localhost:5173`.
 
 Backend:
 

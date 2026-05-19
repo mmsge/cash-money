@@ -472,6 +472,7 @@ svg .axis-label {
   left: 8px;
   z-index: 2;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   border-radius: 999px;
   padding: 5px;
@@ -500,6 +501,14 @@ svg .axis-label {
   text-transform: uppercase;
 }
 
+.chart-note {
+  margin: 0 0 10px;
+  max-width: 560px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
 .chart-summary strong {
   color: var(--accent);
   font-size: 1.45rem;
@@ -517,12 +526,40 @@ svg .percent-area {
   fill: rgba(180, 83, 9, 0.12);
 }
 
-svg .percent-line {
+svg .percent-line,
+svg .inflation-line,
+svg .real-line {
   stroke: #b45309;
 }
 
-svg .percent-dot {
+svg .percent-dot,
+svg .inflation-dot,
+svg .real-dot {
   stroke: #b45309;
+}
+
+svg .inflation-area {
+  fill: rgba(37, 99, 235, 0.11);
+}
+
+svg .inflation-line {
+  stroke: #2563eb;
+}
+
+svg .inflation-dot {
+  stroke: #2563eb;
+}
+
+svg .real-area {
+  fill: rgba(15, 118, 110, 0.12);
+}
+
+svg .real-line {
+  stroke: #0f766e;
+}
+
+svg .real-dot {
+  stroke: #0f766e;
 }
 
 svg .forecast-area {
@@ -618,10 +655,26 @@ svg .flag-label {
   font-size: 1.35rem;
 }
 
-.year-card p {
+.year-metrics {
+  display: grid;
+  gap: 8px;
+}
+
+.metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
   margin: 0;
+  color: var(--ink);
+}
+
+.metric span {
+  color: var(--muted);
+}
+
+.metric strong {
   color: var(--accent);
-  font-weight: 800;
+  font-size: 1rem;
 }
 
 .chip {
