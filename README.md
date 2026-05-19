@@ -1,6 +1,6 @@
-# Lønnsutvikling
+# Cash Money
 
-Lokal webapp for å registrere, importere og visualisere lønnsutvikling over tid.
+Lokal webapp som fortel historia om lønsutviklinga di — sju seksjonar i ein roleg, redaksjonell rulleflyt med diagram, kjøpekraftsgap og prognose.
 
 ## Kjør fra GitHub Container Registry
 
