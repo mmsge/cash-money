@@ -223,7 +223,7 @@ function App() {
               value={pasteText}
               onChange={(event) => setPasteText(event.target.value)}
               rows={12}
-              placeholder={"2026-05-01\nNOK 860000\n\n2025-05-01 2026-04-30\n815000"}
+              placeholder={"2026-05-01\nNOK 200000\n\n2025-05-01 2026-04-30\n100000"}
             />
             <button type="submit">Importer tekst</button>
           </form>
